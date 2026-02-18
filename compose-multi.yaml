@@ -1,0 +1,35 @@
+services:
+  redis:
+    image: 'redis:latest'
+    ports:
+      - '6379:6379'
+
+  app1:
+    build: .
+    ports:
+      - '8080:8080'
+    environment:
+      - SPRING_PROFILES_ACTIVE=redis
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+
+  app2:
+    build: .
+    ports:
+      - '8081:8080'
+    environment:
+      - SPRING_PROFILES_ACTIVE=redis
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+
+  app3:
+    build: .
+    ports:
+      - '8082:8080'
+    environment:
+      - SPRING_PROFILES_ACTIVE=redis
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
