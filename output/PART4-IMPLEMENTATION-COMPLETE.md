@@ -15,14 +15,15 @@ Build successful. Full test coverage achieved.
 
 ## Test Results Summary:
 
-### Total Test Coverage: 50/50 Tests Passing ✅
+### Total Test Coverage: 51/51 Tests Passing ✅
 
 | Test Suite                    | Tests  | Passed | Failed | Time       | Description                             |
 |-------------------------------|--------|--------|--------|------------|-----------------------------------------|
-| WarmestDataStructureTest      | 21     | 21     | 0      | 0.009s     | Local in-memory implementation          |
-| WarmestDataControllerTest     | 8      | 8      | 0      | 0.448s     | REST API endpoints                      |
-| RedisWarmestDataStructureTest | 21     | 21     | 0      | 2.926s     | Redis + Lua scripts with Testcontainers |
-| **TOTAL**                     | **50** | **50** | **0**  | **3.383s** | **100% Pass Rate**                      |
+| WarmestDataStructureTest      | 21     | 21     | 0      | 0.008s     | Local in-memory implementation          |
+| WarmestDataControllerTest     | 8      | 8      | 0      | 0.413s     | REST API endpoints                      |
+| RedisWarmestDataStructureTest | 21     | 21     | 0      | 2.465s     | Redis + Lua scripts with Testcontainers |
+| WarmestDataApplicationTests   | 1      | 1      | 0      | 0.308s     | Spring context loading                  |
+| **TOTAL**                     | **51** | **51** | **0**  | **3.194s** | **100% Pass Rate**                      |
 
 ## RedisWarmestDataStructureTest Details:
 

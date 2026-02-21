@@ -16,14 +16,16 @@ Build successful. Redis implementation ready for deployment.
 - **remove.lua** - Atomic remove operation with list cleanup (65 lines)
 - **getWarmest.lua** - Simple tail key retrieval (9 lines)
 
-### 2. Redis Implementation (src/main/java/io/github/ashr123/warmestdata/redis/)
+### 2. Redis Implementation (src/main/java/io/github/ashr123/warmestdata/dto/)
 
-- **RedisWarmestDataStructure.java** - Implementation of `WarmestDataStructureInterface` using Redis + Lua scripts
+- **RedisWarmestDataStructure.java** - Implementation of `WarmestDataStructureInterface` using Redis + Lua scripts with `@Profile("redis")`
 
-### 3. Configuration (src/main/java/io/github/ashr123/warmestdata/config/)
+### 3. Configuration
 
-- **RedisConfig.java** - Bean definitions for all 4 Lua scripts (with @Profile("redis"))
-- **WarmestDataConfig.java** - Modified to add @Profile("!redis") to local bean
+Profile-based configuration is managed through annotations:
+- `@Profile("redis")` on `RedisWarmestDataStructure` activates Redis implementation
+- `@Profile("!redis")` on `WarmestDataStructure` activates local/in-memory implementation
+- Lua scripts are loaded via `RedisScript.of(new ClassPathResource(...))` directly in the implementation class
 
 ### 4. Docker & Deployment
 

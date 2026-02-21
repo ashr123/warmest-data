@@ -8,13 +8,13 @@ All 8 controller tests pass with 0 failures and 0 errors.
 
 ## Files Created:
 
-### 1. Configuration
-
-- **WarmestDataConfig.java** - Spring `@Configuration` class that provides the `WarmestDataStructureInterface` bean
-
-### 2. REST Controller
+### 1. REST Controller
 
 - **WarmestDataController.java** - Spring `@RestController` implementing 4 RESTful endpoints
+
+Note: Configuration is handled via `@Profile` annotations directly on the implementation classes:
+- `WarmestDataStructure` uses `@Profile("!redis")` for local/in-memory mode
+- `RedisWarmestDataStructure` uses `@Profile("redis")` for Redis mode
 
 ## REST API Endpoints (RESTful with Sub-Resource Pattern):
 

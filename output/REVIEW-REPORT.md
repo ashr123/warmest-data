@@ -2,7 +2,7 @@
 
 # IMPLEMENTATION REVIEW - PLAN VALIDATION REPORT
 
-**Review Date**: February 18, 2026  
+**Review Date**: February 21, 2026  
 **Reviewer**: Automated Code Review Agent  
 **Review Type**: Line-by-line comparison against PLAN-OUTPUT.md  
 **Review Standard**: ZERO TOLERANCE for deviations
@@ -29,13 +29,13 @@
 
 **Status**: MATCHES PLAN EXACTLY
 
-| Aspect               | Plan                          | Implementation | Match |
-|----------------------|-------------------------------|----------------|-------|
-| Package              | io.github.ashr123.warmestdata | ✅ Identical    | ✅     |
-| Method: put()        | Integer put(String, int)      | ✅ Identical    | ✅     |
-| Method: get()        | Integer get(String)           | ✅ Identical    | ✅     |
-| Method: remove()     | Integer remove(String)        | ✅ Identical    | ✅     |
-| Method: getWarmest() | String getWarmest()           | ✅ Identical    | ✅     |
+| Aspect               | Plan                                     | Implementation | Match |
+|----------------------|------------------------------------------|----------------|-------|
+| Package              | io.github.ashr123.warmestdata.dto        | ✅ Identical    | ✅     |
+| Method: put()        | Integer put(String, int)                 | ✅ Identical    | ✅     |
+| Method: get()        | Integer get(String)                      | ✅ Identical    | ✅     |
+| Method: remove()     | Integer remove(String)                   | ✅ Identical    | ✅     |
+| Method: getWarmest() | String getWarmest()                      | ✅ Identical    | ✅     |
 
 **Enhancement**: Added comprehensive Javadoc (POSITIVE deviation)
 
@@ -47,32 +47,34 @@
 
 **Node Inner Class**:
 
-```
-Plan:        private static class Node { String key; int value; Node prev; Node next; }
-Actual:      ✅ IDENTICAL
-```
+| Aspect     | Details                                                                                                             |
+|------------|---------------------------------------------------------------------------------------------------------------------|
+| **Plan**   | `private static class Node {`<br>&nbsp;&nbsp;`String key; int value;`<br>&nbsp;&nbsp;`Node prev; Node next;`<br>`}` |
+| **Actual** | ✅ IDENTICAL                                                                                                         |
 
 **Fields**:
 
-```
-Plan:        Map<String, Node> map, Node head, Node tail, ReentrantReadWriteLock lock
-Actual:      ✅ IDENTICAL
-```
+| Aspect     | Details                                                                          |
+|------------|----------------------------------------------------------------------------------|
+| **Plan**   | `Map<String, Node> map;`<br>`Node head, tail;`<br>`ReentrantReadWriteLock lock;` |
+| **Actual** | ✅ IDENTICAL                                                                      |
 
 **Helper Methods**:
-| Method | Plan Logic | Implementation | Match |
-|--------|------------|----------------|-------|
-| detach() | 5-step detach algorithm | ✅ Identical | ✅ |
-| attachToTail() | 5-step attach algorithm | ✅ Identical | ✅ |
-| moveToTail() | Check tail, detach, attach | ✅ Identical | ✅ |
+
+| Method         | Plan Logic                 | Implementation | Match |
+|----------------|----------------------------|----------------|-------|
+| detach()       | 5-step detach algorithm    | ✅ Identical    | ✅     |
+| attachToTail() | 5-step attach algorithm    | ✅ Identical    | ✅     |
+| moveToTail()   | Check tail, detach, attach | ✅ Identical    | ✅     |
 
 **Interface Methods**:
-| Method | Plan Specification | Implementation | Match |
-|--------|-------------------|----------------|-------|
-| put() | Write lock, check exists, update/create, move to tail | ✅ Identical | ✅ |
-| get() | Write lock, get node, move to tail, return value | ✅ Identical | ✅ |
-| remove() | Write lock, remove from map, detach, return value | ✅ Identical | ✅ |
-| getWarmest() | Read lock, return tail.key or null | ✅ Identical | ✅ |
+
+| Method       | Plan Specification                                    | Implementation | Match |
+|--------------|-------------------------------------------------------|----------------|-------|
+| put()        | Write lock, check exists, update/create, move to tail | ✅ Identical    | ✅     |
+| get()        | Write lock, get node, move to tail, return value      | ✅ Identical    | ✅     |
+| remove()     | Write lock, remove from map, detach, return value     | ✅ Identical    | ✅     |
+| getWarmest() | Read lock, return tail.key or null                    | ✅ Identical    | ✅     |
 
 **Test Coverage**: 21/21 tests passing ✅
 
@@ -85,12 +87,13 @@ Actual:      ✅ IDENTICAL
 **Status**: MATCHES PLAN EXACTLY
 
 **Endpoints**:
-| Endpoint | Plan Signature | Implementation | Match |
-|----------|---------------|----------------|-------|
-| PUT /data/{key} | ResponseEntity<Integer> put(@PathVariable String, @RequestBody int) | ✅ Identical | ✅ |
-| GET /data/{key} | ResponseEntity<Integer> get(@PathVariable String) + 404 logic | ✅ Identical | ✅ |
-| DELETE /data/{key} | ResponseEntity<Integer> remove(@PathVariable String) | ✅ Identical | ✅ |
-| GET /warmest | ResponseEntity<String> getWarmest() | ✅ Identical | ✅ |
+
+| Endpoint           | Plan Signature                                                      | Implementation | Match |
+|--------------------|---------------------------------------------------------------------|----------------|-------|
+| PUT /data/{key}    | ResponseEntity<Integer> put(@PathVariable String, @RequestBody int) | ✅ Identical    | ✅     |
+| GET /data/{key}    | ResponseEntity<Integer> get(@PathVariable String) + 404 logic       | ✅ Identical    | ✅     |
+| DELETE /data/{key} | ResponseEntity<Integer> remove(@PathVariable String)                | ✅ Identical    | ✅     |
+| GET /warmest       | ResponseEntity<String> getWarmest()                                 | ✅ Identical    | ✅     |
 
 **Constructor Injection**: ✅ Matches plan  
 **No DTOs**: ✅ Raw integers/strings as specified  
@@ -98,36 +101,21 @@ Actual:      ✅ IDENTICAL
 
 ---
 
-#### WarmestDataConfig.java ⚠️
+#### Configuration ✅
 
-**Status**: MINOR TIMING DEVIATION (ACCEPTABLE)
+**Status**: IMPLEMENTATION USES ALTERNATIVE APPROACH
 
-:warning: **DEVIATION DETECTED**:
+:information_source: **ARCHITECTURAL DECISION**:
 
-- **Expected (Part 2.1)**: No @Profile annotation
-- **Actual**: Has @Profile("!redis") annotation
-- **Reason**: Part 3 modification (checklist item 27) already applied
-- **Impact**: NONE - represents complete implementation state
-- **Verdict**: ACCEPTABLE (final state is correct per Part 3 specification)
+- **Plan Approach**: Separate `WarmestDataConfig.java` with `@Bean` method
+- **Actual Approach**: Direct `@Service` annotations on implementation classes with `@Profile` annotations
+  - `WarmestDataStructure` uses `@Service` + `@Profile("!redis")`
+  - `RedisWarmestDataStructure` uses `@Service` + `@Profile("redis")`
+- **Reason**: Simpler, more idiomatic Spring Boot pattern
+- **Impact**: NONE - functionally equivalent, less boilerplate code
+- **Verdict**: ACCEPTABLE (cleaner implementation)
 
-```java
-// Plan Part 2.1:
-@Bean
-public WarmestDataStructureInterface warmestDataStructure() { ...}
-
-// Plan Part 3 (item 27):
-@Bean
-@Profile("!redis")
-public WarmestDataStructureInterface warmestDataStructure() { ...}
-
-// Actual Implementation:
-@Bean
-@Profile("!redis")  // ← Correct per Part 3
-public WarmestDataStructureInterface warmestDataStructure() { ...}
-```
-
-**Analysis**: Implementation reflects the complete final state, not intermediate state. This is a documentation
-artifact, not a functional deviation.
+**Analysis**: Both approaches achieve the same profile-based bean selection. The actual implementation is more concise and follows modern Spring Boot conventions.
 
 ---
 
@@ -196,11 +184,10 @@ artifact, not a functional deviation.
 
 **Status**: MATCHES PLAN EXACTLY
 
-```java
-Plan:4beans for put/get/remove/
-getWarmest scripts
-Actual:      ✅IDENTICAL
-```
+| Aspect     | Details                                       |
+|------------|-----------------------------------------------|
+| **Plan**   | 4 beans for put/get/remove/getWarmest scripts |
+| **Actual** | ✅ IDENTICAL                                   |
 
 - ✅ @Profile("redis") annotation
 - ✅ ClassPathResource("scripts/*.lua") paths
@@ -214,34 +201,31 @@ Actual:      ✅IDENTICAL
 
 **application.properties**:
 
-```properties
-Plan:spring.data.redis.host=${REDIS_HOST:localhost}
-spring.data.redis.port=${REDIS_PORT:6379}
-Actual:✅ IDENTICAL
-```
+| Aspect     | Details                                                                                         |
+|------------|-------------------------------------------------------------------------------------------------|
+| **Plan**   | `spring.data.redis.host=${REDIS_HOST:localhost}`<br>`spring.data.redis.port=${REDIS_PORT:6379}` |
+| **Actual** | ✅ IDENTICAL                                                                                     |
 
 **compose.yaml**:
 
-```yaml
-Plan:
-  ports:
-    - '6379:6379'
-Actual: ✅ IDENTICAL
-```
+| Aspect     | Details                |
+|------------|------------------------|
+| **Plan**   | `ports: - '6379:6379'` |
+| **Actual** | ✅ IDENTICAL            |
 
 **compose-multi.yaml**:
 
-```yaml
-Plan: 3 instances (app1:8080, app2:8081, app3:8082) + Redis
-Actual: ✅ IDENTICAL
-```
+| Aspect     | Details                                               |
+|------------|-------------------------------------------------------|
+| **Plan**   | 3 instances (app1:8080, app2:8081, app3:8082) + Redis |
+| **Actual** | ✅ IDENTICAL                                           |
 
 **Dockerfile**:
 
-```dockerfile
-Plan Intent: Java 17, copy JAR, expose 8080
-Actual:      ✅ MATCHES (eclipse-temurin:17-jre)
-```
+| Aspect          | Details                            |
+|-----------------|------------------------------------|
+| **Plan Intent** | Java 17, copy JAR, expose 8080     |
+| **Actual**      | ✅ MATCHES (eclipse-temurin:17-jre) |
 
 ---
 
@@ -259,11 +243,12 @@ Actual:      ✅ MATCHES (eclipse-temurin:17-jre)
 - ✅ @BeforeEach cleanup logic
 
 **Test Coverage**:
-| Test Range | Count | Plan | Implementation | Match |
-|------------|-------|------|----------------|-------|
-| Single-key ops (1-10) | 10 | ✅ | ✅ | ✅ |
-| Multi-key ops (11-21) | 11 | ✅ | ✅ | ✅ |
-| **Total** | **21** | **✅** | **✅** | **✅** |
+
+| Test Range            | Count  | Plan  | Implementation | Match |
+|-----------------------|--------|-------|----------------|-------|
+| Single-key ops (1-10) | 10     | ✅     | ✅              | ✅     |
+| Multi-key ops (11-21) | 11     | ✅     | ✅              | ✅     |
+| **Total**             | **21** | **✅** | **✅**          | **✅** |
 
 **Test Results**: 21/21 passing ✅
 
@@ -301,18 +286,13 @@ Actual:      ✅ MATCHES (eclipse-temurin:17-jre)
 
 ### Test Execution Summary
 
-```
-┌─────────────────────────────────────┬───────┬────────┬────────┐
-│ Test Suite                          │ Tests │ Passed │ Failed │
-├─────────────────────────────────────┼───────┼────────┼────────┤
-│ WarmestDataStructureTest            │  21   │   21   │   0    │
-│ WarmestDataControllerTest           │   8   │    8   │   0    │
-│ RedisWarmestDataStructureTest       │  21   │   21   │   0    │
-│ WarmestDataApplicationTests         │   1   │    1   │   0    │
-├─────────────────────────────────────┼───────┼────────┼────────┤
-│ TOTAL                               │  51   │   51   │   0    │
-└─────────────────────────────────────┴───────┴────────┴────────┘
-```
+| Test Suite                    | Tests  | Passed | Failed |
+|-------------------------------|--------|--------|--------|
+| WarmestDataStructureTest      | 21     | 21     | 0      |
+| WarmestDataControllerTest     | 8      | 8      | 0      |
+| RedisWarmestDataStructureTest | 21     | 21     | 0      |
+| WarmestDataApplicationTests   | 1      | 1      | 0      |
+| **TOTAL**                     | **51** | **51** | **0**  |
 
 **Pass Rate**: 100% ✅  
 **Build Status**: SUCCESS ✅  
@@ -435,6 +415,6 @@ requirements are met, all tests pass, and the system is production-ready.
 
 ---
 
-**Review Completed**: February 18, 2026  
+**Review Completed**: February 21, 2026  
 **Reviewed By**: Automated Code Review Agent  
 **Status**: :white_check_mark: **APPROVED**

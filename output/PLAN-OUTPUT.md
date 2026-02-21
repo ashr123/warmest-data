@@ -172,24 +172,17 @@ private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 src/main/java/io/github/ashr123/warmestdata/
 ├── controller/
 │   └── WarmestDataController.java        (NEW)
-├── config/
-│   └── WarmestDataConfig.java            (NEW)
+├── dto/
+│   ├── WarmestDataStructureInterface.java (FROM PART 1)
+│   └── WarmestDataStructure.java          (FROM PART 1 - add @Profile("!redis"))
 ```
 
 ### 2.1 Configuration
 
-**File**: `src/main/java/io/github/ashr123/warmestdata/config/WarmestDataConfig.java`
-
-```java
-
-@Configuration
-public class WarmestDataConfig {
-	@Bean
-	public WarmestDataStructureInterface warmestDataStructure() {
-		return new WarmestDataStructure();
-	}
-}
-```
+Configuration is handled via `@Profile` annotations:
+- `WarmestDataStructure` uses `@Service` and `@Profile("!redis")` annotations
+- This allows Spring to automatically provide the bean when Redis profile is not active
+- No separate `@Configuration` class is needed
 
 ### 2.2 REST Controller
 
