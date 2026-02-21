@@ -1,14 +1,15 @@
 package io.github.ashr123.warmestdata.dto;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.List;
 
-@Component
+@Service
 @Profile("redis")
 public class RedisWarmestDataStructure implements WarmestDataStructureInterface {
 
@@ -20,45 +21,37 @@ public class RedisWarmestDataStructure implements WarmestDataStructureInterface 
 	private static final List<String> WARMEST_KEYS = List.of(TAIL_KEY);
 	private static final List<String> KEYS = Arrays.asList(DATA_KEY, PREV_KEY, NEXT_KEY, HEAD_KEY, TAIL_KEY);
 
-	private final StringRedisTemplate redisTemplate;
-	private final RedisScript<String> putScript;
-	private final RedisScript<String> getScript;
-	private final RedisScript<String> removeScript;
-	private final RedisScript<String> getWarmestScript;
+	private static final RedisScript<String> PUT_SCRIPT = RedisScript.of(new ClassPathResource("scripts/put.lua"), String.class);
+	private static final RedisScript<String> GET_SCRIPT = RedisScript.of(new ClassPathResource("scripts/get.lua"), String.class);
+	private static final RedisScript<String> REMOVE_SCRIPT = RedisScript.of(new ClassPathResource("scripts/remove.lua"), String.class);
+	private static final RedisScript<String> GET_WARMEST_SCRIPT = RedisScript.of(new ClassPathResource("scripts/getWarmest.lua"), String.class);
 
-	public RedisWarmestDataStructure(
-			StringRedisTemplate redisTemplate,
-			RedisScript<String> putScript,
-			RedisScript<String> getScript,
-			RedisScript<String> removeScript,
-			RedisScript<String> getWarmestScript) {
+	private final StringRedisTemplate redisTemplate;
+
+	public RedisWarmestDataStructure(StringRedisTemplate redisTemplate) {
 		this.redisTemplate = redisTemplate;
-		this.putScript = putScript;
-		this.getScript = getScript;
-		this.removeScript = removeScript;
-		this.getWarmestScript = getWarmestScript;
 	}
 
 	@Override
 	public Integer put(String key, int value) {
-		String result = redisTemplate.execute(putScript, KEYS, key, String.valueOf(value));
+		String result = redisTemplate.execute(PUT_SCRIPT, KEYS, key, String.valueOf(value));
 		return result == null ? null : Integer.parseInt(result);
 	}
 
 	@Override
 	public Integer get(String key) {
-		String result = redisTemplate.execute(getScript, KEYS, key);
+		String result = redisTemplate.execute(GET_SCRIPT, KEYS, key);
 		return result == null ? null : Integer.parseInt(result);
 	}
 
 	@Override
 	public Integer remove(String key) {
-		String result = redisTemplate.execute(removeScript, KEYS, key);
+		String result = redisTemplate.execute(REMOVE_SCRIPT, KEYS, key);
 		return result == null ? null : Integer.parseInt(result);
 	}
 
 	@Override
 	public String getWarmest() {
-		return redisTemplate.execute(getWarmestScript, WARMEST_KEYS);
+		return redisTemplate.execute(GET_WARMEST_SCRIPT, WARMEST_KEYS);
 	}
 }
