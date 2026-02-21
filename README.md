@@ -320,7 +320,7 @@ curl -X DELETE http://localhost:8080/data/temperature
 ### Part 1: Core Data Structure (10/10) ✅
 - [x] Interface definition
 - [x] Custom Node class
-- [x] Fields (map, head, tail, lock)
+- [x] Fields (map, tail, lock)
 - [x] Helper methods
 - [x] All 4 interface methods
 - [x] 21 unit tests passing
