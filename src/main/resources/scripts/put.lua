@@ -1,83 +1,83 @@
 -- KEYS[1] = "warmest:data"
 -- KEYS[2] = "warmest:prev"
 -- KEYS[3] = "warmest:next"
--- KEYS[4] = "warmest:head"
--- KEYS[5] = "warmest:tail"
+-- KEYS[4] = "warmest:tail"
 -- ARGV[1] = key
 -- ARGV[2] = value
 
 local dataKey = KEYS[1]
 local prevKey = KEYS[2]
 local nextKey = KEYS[3]
-local headKey = KEYS[4]
-local tailKey = KEYS[5]
+local tailKey = KEYS[4]
 local key = ARGV[1]
 local value = ARGV[2]
 
--- Get previous value
-local previousValue = redis.call('HGET', dataKey, key)
-
--- Check if key exists
-local exists = previousValue ~= false
-
-if exists then
-    -- Key exists: update value and move to tail
-    redis.call('HSET', dataKey, key, value)
-
-    -- Get current position
+-- Detaches a node from its current position in the linked list
+local function detach(key)
     local prevNode = redis.call('HGET', prevKey, key)
     local nextNode = redis.call('HGET', nextKey, key)
-    local currentTail = redis.call('GET', tailKey)
 
-    -- If already tail, nothing to do for position
-    if currentTail ~= key then
-        -- Detach from current position
-        if prevNode and prevNode ~= false then
-            if nextNode and nextNode ~= false then
-                redis.call('HSET', nextKey, prevNode, nextNode)
-            else
-                redis.call('HDEL', nextKey, prevNode)
-            end
-        else
-            -- This was head
-            if nextNode and nextNode ~= false then
-                redis.call('SET', headKey, nextNode)
-            end
-        end
-
-        if nextNode and nextNode ~= false then
-            if prevNode and prevNode ~= false then
-                redis.call('HSET', prevKey, nextNode, prevNode)
-            else
-                redis.call('HDEL', prevKey, nextNode)
-            end
-        end
-
-        -- Attach to tail
-        if currentTail and currentTail ~= false then
-            redis.call('HSET', nextKey, currentTail, key)
-        end
-        redis.call('HSET', prevKey, key, currentTail)
-        redis.call('HDEL', nextKey, key)
-        redis.call('SET', tailKey, key)
+    -- Update previous node's next pointer
+    if prevNode ~= false and nextNode ~= false then
+        redis.call('HSET', nextKey, prevNode, nextNode)
+    elseif prevNode ~= false then
+        redis.call('HDEL', nextKey, prevNode)
     end
-else
-    -- Key doesn't exist: create and add to tail
-    redis.call('HSET', dataKey, key, value)
 
+    -- Update next node's prev pointer
+    if nextNode ~= false and prevNode ~= false then
+        redis.call('HSET', prevKey, nextNode, prevNode)
+    elseif nextNode ~= false then
+        redis.call('HDEL', prevKey, nextNode)
+    end
+end
+
+-- Attaches a node to the tail of the linked list (making it the warmest)
+local function attachToTail(key)
     local currentTail = redis.call('GET', tailKey)
-    local currentHead = redis.call('GET', headKey)
 
-    if currentTail and currentTail ~= false then
+    if currentTail ~= false then
         redis.call('HSET', nextKey, currentTail, key)
         redis.call('HSET', prevKey, key, currentTail)
     end
 
+    redis.call('HDEL', nextKey, key)
     redis.call('SET', tailKey, key)
+end
 
-    if not currentHead or currentHead == false then
-        redis.call('SET', headKey, key)
+-- Moves an existing node to the tail position (making it the warmest)
+local function moveToTail(key)
+    local currentTail = redis.call('GET', tailKey)
+
+    if currentTail == key then
+        -- Already at tail, nothing to do
+        return
     end
+
+    detach(key)
+    attachToTail(key)
+end
+
+-- Inserts a new node and attaches it to the tail
+local function insertNewNode(key, value)
+    redis.call('HSET', dataKey, key, value)
+    attachToTail(key)
+end
+
+-- Updates an existing node's value and moves it to tail
+local function updateExistingNode(key, value)
+    redis.call('HSET', dataKey, key, value)
+    moveToTail(key)
+end
+
+-- Main logic
+local previousValue = redis.call('HGET', dataKey, key)
+local exists = previousValue ~= false
+
+if exists then
+    updateExistingNode(key, value)
+else
+    insertNewNode(key, value)
 end
 
 return previousValue

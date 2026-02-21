@@ -43,14 +43,13 @@ Throughput: 1,000-5,000 ops/sec per instance
 warmest:data (Hash)   → {key: value}
 warmest:prev (Hash)   → {key: prev_key}
 warmest:next (Hash)   → {key: next_key}
-warmest:head (String) → head_key
 warmest:tail (String) → tail_key
 ```
 
 **Operations**: O(1) atomic Lua scripts
 
 **Pros**:
-- ✅ Simple data model (5 keys)
+- ✅ Simple data model (4 keys)
 - ✅ Atomic operations via Lua
 - ✅ No transaction complexity
 - ✅ In-memory performance

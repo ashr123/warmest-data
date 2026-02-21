@@ -32,15 +32,12 @@ warmest-data/
 ├── src/
 │   ├── main/
 │   │   ├── java/io/github/ashr123/warmestdata/
-│   │   │   ├── WarmestDataStructureInterface.java      [Interface]
-│   │   │   ├── WarmestDataStructure.java               [Local Impl - Part 1]
 │   │   │   ├── WarmestDataApplication.java             [Spring Boot App]
-│   │   │   ├── config/
-│   │   │   │   ├── WarmestDataConfig.java              [Part 1 Bean]
-│   │   │   │   └── RedisConfig.java                    [Part 3 Scripts]
 │   │   │   ├── controller/
 │   │   │   │   └── WarmestDataController.java          [Part 2 REST API]
-│   │   │   └── redis/
+│   │   │   └── dto/
+│   │   │       ├── WarmestDataStructureInterface.java  [Interface]
+│   │   │       ├── WarmestDataStructure.java           [Local Impl - Part 1]
 │   │   │       └── RedisWarmestDataStructure.java      [Part 3 Redis Impl]
 │   │   └── resources/
 │   │       ├── application.properties                   [Configuration]
@@ -54,8 +51,9 @@ warmest-data/
 │           ├── WarmestDataStructureTest.java           [Part 1 Tests - 21]
 │           ├── WarmestDataControllerTest.java          [Part 2 Tests - 8]
 │           ├── RedisWarmestDataStructureTest.java      [Part 4 Tests - 21]
-│           ├── TestcontainersConfiguration.java
-│           └── WarmestDataApplicationTests.java
+│           ├── WarmestDataApplicationTests.java
+│           ├── TestWarmestDataApplication.java
+│           └── TestcontainersConfiguration.java
 ├── Dockerfile                                           [Part 3 Container]
 ├── compose.yaml                                         [Redis Dev]
 ├── compose-multi.yaml                                   [Part 3 Multi-Instance]
@@ -74,7 +72,7 @@ warmest-data/
 ## 🎯 Implementation Summary by Part
 
 ### PART 1: Core Data Structure ✅
-**Files**: 2 Java files  
+**Files**: 2 Java files
 **Tests**: 21 passing  
 **Time**: 0.009s
 
@@ -93,17 +91,18 @@ warmest-data/
 ---
 
 ### PART 2: REST API ✅
-**Files**: 2 Java files  
+**Files**: 2 Java files
 **Tests**: 8 passing  
 **Time**: 0.448s
 
 **API Endpoints**:
-```
-PUT    /data/{key}     - Body: integer, Returns: previous value
-GET    /data/{key}     - Returns: value or 404
-DELETE /data/{key}     - Returns: previous value
-GET    /warmest        - Returns: warmest key
-```
+
+| Method | Endpoint       | Request Body | Response                |
+|--------|----------------|--------------|-------------------------|
+| PUT    | `/data/{key}`  | integer      | previous value or null  |
+| GET    | `/data/{key}`  | -            | value or 404            |
+| DELETE | `/data/{key}`  | -            | previous value          |
+| GET    | `/warmest`     | -            | warmest key             |
 
 **Key Features**:
 - ✅ RESTful design with sub-resource pattern
@@ -114,24 +113,24 @@ GET    /warmest        - Returns: warmest key
 ---
 
 ### PART 3: Redis Implementation ✅
-**Files**: 4 Lua scripts, 2 Java files, 3 deployment files  
+**Files**: 4 Lua scripts, 2 Java files, 3 deployment files
 **Verified by**: Part 4 tests (21 passing)  
 **Time**: 2.926s
 
 **Redis Data Structure**:
-```
-warmest:data  (Hash)   → key:value mappings
-warmest:prev  (Hash)   → key:previous_key
-warmest:next  (Hash)   → key:next_key
-warmest:head  (String) → coldest key
-warmest:tail  (String) → warmest key
-```
+
+| Redis Key      | Type   | Purpose                  |
+|----------------|--------|--------------------------|
+| warmest:data   | Hash   | key:value mappings       |
+| warmest:prev   | Hash   | key:previous_key         |
+| warmest:next   | Hash   | key:next_key             |
+| warmest:tail   | String | warmest key              |
 
 **Lua Scripts**:
-- ✅ `put.lua` (86 lines) - Atomic put with list manipulation
-- ✅ `get.lua` (59 lines) - Atomic get with move-to-tail
-- ✅ `remove.lua` (65 lines) - Atomic remove with cleanup
-- ✅ `getWarmest.lua` (9 lines) - Tail retrieval
+- ✅ `put.lua` (84 lines) - Atomic put with extracted functions and merged conditionals
+- ✅ `get.lua` (68 lines) - Atomic get with extracted functions and merged conditionals
+- ✅ `remove.lua` (57 lines) - Atomic remove with extracted functions and merged conditionals
+- ✅ `getWarmest.lua` (11 lines) - Tail retrieval
 
 **Key Features**:
 - ✅ Atomic operations via Lua scripts
@@ -143,7 +142,7 @@ warmest:tail  (String) → warmest key
 ---
 
 ### PART 4: Testing ✅
-**Files**: 1 test class  
+**Files**: 1 test class
 **Tests**: 21 passing  
 **Time**: 2.926s
 

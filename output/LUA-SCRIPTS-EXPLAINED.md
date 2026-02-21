@@ -51,13 +51,18 @@ Redis provides **strong atomicity guarantees** for Lua scripts:
 
 ```lua
 -- This entire sequence is ATOMIC:
-redis.call('HGET', dataKey, key)          -- Read previous value
-redis.call('HSET', dataKey, key, value)   -- Update value
-redis.call('HGET', prevKey, key)          -- Read prev pointer
-redis.call('HGET', nextKey, key)          -- Read next pointer
-redis.call('HSET', nextKey, prevNode, nextNode)  -- Update pointers
-redis.call('HSET', prevKey, key, currentTail)    -- Update pointers
-redis.call('SET', tailKey, key)           -- Update tail
+local previousValue = redis.call('HGET', dataKey, key)       -- Read previous value
+redis.call('HSET', dataKey, key, value)                      -- Update value
+-- detach(key) function executes atomically:
+    local prevNode = redis.call('HGET', prevKey, key)        -- Read prev pointer
+    local nextNode = redis.call('HGET', nextKey, key)        -- Read next pointer
+    redis.call('HSET', nextKey, prevNode, nextNode)          -- Update pointers
+    redis.call('HSET', prevKey, nextNode, prevNode)          -- Update pointers
+-- attachToTail(key) function executes atomically:
+    local currentTail = redis.call('GET', tailKey)           -- Read tail
+    redis.call('HSET', nextKey, currentTail, key)            -- Update pointers
+    redis.call('HSET', prevKey, key, currentTail)            -- Update pointers
+    redis.call('SET', tailKey, key)                          -- Update tail
 ```
 
 **Without Lua**: Each redis.call() would be a separate command → race conditions possible
@@ -88,21 +93,20 @@ Both instances see **consistent state** - no partial updates.
 
 ### Understanding the Data Structure
 
-The implementation uses **5 Redis keys** to maintain a doubly linked list:
+The implementation uses **4 Redis keys** to maintain a doubly linked list:
 
 ```
 Data Structure in Redis:
 ┌──────────────────────────────────────────────────────┐
 │ warmest:data (Hash)   →  {"a": "100", "b": "200"}   │
-│ warmest:prev (Hash)   →  {"a": null, "b": "a"}      │
-│ warmest:next (Hash)   →  {"a": "b", "b": null}      │
-│ warmest:head (String) →  "a"                         │
+│ warmest:prev (Hash)   →  {"b": "a"}                 │
+│ warmest:next (Hash)   →  {"a": "b"}                 │
 │ warmest:tail (String) →  "b"                         │
 └──────────────────────────────────────────────────────┘
 
 Linked list visualization:
-    head                          tail
-     ↓                             ↓
+                              tail
+                               ↓
    [a:100] ←→ [b:200]
    prev=null  prev=a
    next=b     next=null

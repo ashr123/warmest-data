@@ -16,10 +16,9 @@ public class RedisWarmestDataStructure implements WarmestDataStructureInterface 
 	private static final String DATA_KEY = "warmest:data";
 	private static final String PREV_KEY = "warmest:prev";
 	private static final String NEXT_KEY = "warmest:next";
-	private static final String HEAD_KEY = "warmest:head";
 	private static final String TAIL_KEY = "warmest:tail";
 	private static final List<String> WARMEST_KEYS = List.of(TAIL_KEY);
-	private static final List<String> KEYS = Arrays.asList(DATA_KEY, PREV_KEY, NEXT_KEY, HEAD_KEY, TAIL_KEY);
+	private static final List<String> KEYS = Arrays.asList(DATA_KEY, PREV_KEY, NEXT_KEY, TAIL_KEY);
 
 	private static final RedisScript<String> PUT_SCRIPT = RedisScript.of(new ClassPathResource("scripts/put.lua"), String.class);
 	private static final RedisScript<String> GET_SCRIPT = RedisScript.of(new ClassPathResource("scripts/get.lua"), String.class);

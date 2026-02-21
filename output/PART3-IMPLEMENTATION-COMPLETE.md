@@ -44,38 +44,38 @@ Profile-based configuration is managed through annotations:
 - `warmest:data` - Hash storing key → value mappings
 - `warmest:prev` - Hash storing key → previous_key pointers
 - `warmest:next` - Hash storing key → next_key pointers
-- `warmest:head` - String storing the head (coldest) key
 - `warmest:tail` - String storing the tail (warmest) key
 
 ### Why Custom Doubly Linked List in Redis?
 
-The implementation uses **5 separate Redis keys** to maintain a doubly linked list structure:
+The implementation uses **4 separate Redis keys** to maintain a doubly linked list structure:
 
 1. **Hash for Data** (`warmest:data`): O(1) value lookup
 2. **Hash for Prev Pointers** (`warmest:prev`): O(1) previous node lookup
 3. **Hash for Next Pointers** (`warmest:next`): O(1) next node lookup
-4. **String for Head** (`warmest:head`): O(1) head access
-5. **String for Tail** (`warmest:tail`): O(1) tail access (warmest key)
+4. **String for Tail** (`warmest:tail`): O(1) tail access (warmest key)
 
 This design ensures **all operations remain O(1)** even in Redis.
 
 ## Lua Script Logic:
 
-### put.lua (86 lines)
+### put.lua (84 lines)
 
 - Checks if key exists using `HGET warmest:data key`
-- **If exists**: Updates value, detaches node, reattaches to tail
-- **If new**: Creates entry, links to current tail, updates tail pointer
+- **If exists**: Updates value via `updateExistingNode()` function
+- **If new**: Creates entry via `insertNewNode()` function
+- Uses extracted functions: `detach()`, `attachToTail()`, `moveToTail()`
 - Returns previous value or nil
 
-### get.lua (59 lines)
+### get.lua (68 lines)
 
 - Retrieves value using `HGET warmest:data key`
 - Returns nil if not found
-- **Moves to tail**: Same detach/reattach logic as put
+- **Moves to tail**: Calls `moveToTail()` function
+- Uses extracted functions: `detach()`, `attachToTail()`
 - Returns value
 
-### remove.lua (65 lines)
+### remove.lua (57 lines)
 
 - Retrieves and deletes value from `warmest:data`
 - Detaches node by updating prev/next pointers

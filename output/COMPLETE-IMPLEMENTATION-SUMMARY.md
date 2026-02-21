@@ -57,10 +57,10 @@ GET    /warmest        - Get warmest key (returns string)
 
 ### Lua Scripts (4 files)
 
-- **put.lua** (86 lines) - Atomic put with list manipulation
-- **get.lua** (59 lines) - Atomic get with move-to-tail
-- **remove.lua** (65 lines) - Atomic remove with cleanup
-- **getWarmest.lua** (9 lines) - Simple tail retrieval
+- **put.lua** (84 lines) - Atomic put with extracted functions
+- **get.lua** (68 lines) - Atomic get with extracted functions
+- **remove.lua** (57 lines) - Atomic remove with extracted functions
+- **getWarmest.lua** (11 lines) - Simple tail retrieval
 
 ### Redis Data Structure
 
@@ -68,7 +68,6 @@ GET    /warmest        - Get warmest key (returns string)
 warmest:data  (Hash)   - key → value
 warmest:prev  (Hash)   - key → prev_key
 warmest:next  (Hash)   - key → next_key
-warmest:head  (String) - head key
 warmest:tail  (String) - tail key (warmest)
 ```
 

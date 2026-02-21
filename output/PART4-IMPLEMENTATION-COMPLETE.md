@@ -117,7 +117,6 @@ Redis doubly linked list implementation:
 - `warmest:data` (Hash) - Stores key-value pairs
 - `warmest:prev` (Hash) - Previous node pointers
 - `warmest:next` (Hash) - Next node pointers
-- `warmest:head` (String) - Head key
 - `warmest:tail` (String) - Tail/warmest key
 
 ### O(1) Complexity Verified ✅
