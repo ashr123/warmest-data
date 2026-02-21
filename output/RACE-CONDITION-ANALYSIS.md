@@ -104,7 +104,7 @@ And in the write lock section:
 return currentNode.value;  // ✅ Write lock held!
 ```
 
-**Verdict**: ✅ **Safe** - We never read node.value without holding a lock!
+**Verdict**: ✅ **Safe** – We never read node.value without holding a lock!
 
 ## Actual Issue: The `node` Reference
 
@@ -130,7 +130,7 @@ try {
 }
 ```
 
-**Verdict**: ✅ **Safe** - We don't use the orphaned reference
+**Verdict**: ✅ **Safe** – We don't use the orphaned reference
 
 ## The REAL Race Condition: Node Value Mutation
 
@@ -238,4 +238,37 @@ However, if you want to be extra defensive, you could add assertions:
 assert lock.isWriteLockedByCurrentThread() : "Must hold write lock";
 ```
 
-But this is **not necessary** - the code is already safe.
+But this is **not necessary** – the code is already safe.
+
+---
+
+## Race Condition Test Coverage
+
+All scenarios identified above are now verified by dedicated concurrency test suites for both profiles:
+
+### Test Files Added
+
+- **`WarmestDataStructureRaceConditionTest.java`** — 10 race condition scenarios for the in-memory (`!redis`) profile
+- **`RedisWarmestDataStructureRaceConditionTest.java`** — 10 race condition scenarios for the Redis (`redis`) profile using Testcontainers
+
+### Scenarios Tested (10 per profile)
+
+| #  | Scenario                                                | What It Verifies                                                             |
+|----|---------------------------------------------------------|------------------------------------------------------------------------------|
+| 1  | Concurrent `get` + `remove` on same key                 | Node removed between read/write lock gap; double-check catches it            |
+| 2  | Concurrent `get` + `get` on same key                    | Node moved to tail between locks; second thread detects it's already warmest |
+| 3  | Concurrent `get` + `put` on same key                    | Value mutation during lock gap; returns valid snapshot (old or new value)    |
+| 4  | Multiple concurrent `get` on different keys             | Linked list integrity under concurrent moveToTail operations                 |
+| 5  | Concurrent `put` + `remove` on same key                 | No exceptions or data corruption from conflicting write operations           |
+| 6  | Mixed concurrent operations (put/get/remove/getWarmest) | Warmest consistency; no exceptions under random concurrent chaos             |
+| 7  | Heavy concurrent `get` with lock upgrade pattern        | No deadlock/livelock from read-lock → write-lock upgrade pattern             |
+| 8  | Per-thread key consistency (put-get-remove cycles)      | Isolated key operations return expected values under concurrency             |
+| 9  | `get` non-existent key during heavy writes              | Always returns null; no cross-contamination from concurrent writes           |
+| 10 | Warmest tracking after concurrent chaos                 | Final deterministic `put` correctly sets warmest after concurrent ops        |
+
+### Test Configuration
+
+- **Thread count**: 10 concurrent threads
+- **Iterations**: 1000 per scenario (in-memory), 200 per scenario (Redis, due to network overhead)
+- **Synchronization**: `CyclicBarrier` for precise concurrent launch, `CountDownLatch` for completion tracking
+- **Deadlock detection**: 30-second timeout assertions on thread completion

@@ -1,23 +1,25 @@
-# 🎉 WarmestData Project - COMPLETE IMPLEMENTATION
+# 🎉 WarmestData Project – COMPLETE IMPLEMENTATION
 
 **Project**: WarmestData - Thread-Safe Warmest Key Tracker  
 **Date Completed**: February 21, 2026  
 **Status**: ✅ PRODUCTION READY  
-**Test Coverage**: 51/51 tests passing (100%)
+**Test Coverage**: 71/71 tests passing (100%)
 
 ---
 
 ## 📊 Final Test Results
 
-### Complete Test Suite: 51/51 PASSING ✅
+### Complete Test Suite: 71/71 PASSING ✅
 
-| Test Suite                    | Tests  | Passed | Failed | Time       |
-|-------------------------------|--------|--------|--------|------------|
-| WarmestDataStructureTest      | 21     | 21     | 0      | 0.008s     |
-| WarmestDataControllerTest     | 8      | 8      | 0      | 0.413s     |
-| RedisWarmestDataStructureTest | 21     | 21     | 0      | 2.465s     |
-| WarmestDataApplicationTests   | 1      | 1      | 0      | 0.308s     |
-| **TOTAL**                     | **51** | **51** | **0**  | **3.194s** |
+| Test Suite                                 | Tests  | Passed | Failed | Time   |
+|--------------------------------------------|--------|--------|--------|--------|
+| WarmestDataStructureTest                   | 21     | 21     | 0      | 0.008s |
+| WarmestDataControllerTest                  | 8      | 8      | 0      | 0.413s |
+| RedisWarmestDataStructureTest              | 21     | 21     | 0      | 2.465s |
+| WarmestDataStructureRaceConditionTest      | 10     | 10     | 0      | ~5s    |
+| RedisWarmestDataStructureRaceConditionTest | 10     | 10     | 0      | ~15s   |
+| WarmestDataApplicationTests                | 1      | 1      | 0      | 0.308s |
+| **TOTAL**                                  | **71** | **71** | **0**  |        |
 
 ✅ 100% Pass Rate  
 ✅ All implementations verified  
@@ -51,6 +53,8 @@ warmest-data/
 │           ├── WarmestDataStructureTest.java           [Part 1 Tests - 21]
 │           ├── WarmestDataControllerTest.java          [Part 2 Tests - 8]
 │           ├── RedisWarmestDataStructureTest.java      [Part 4 Tests - 21]
+│           ├── WarmestDataStructureRaceConditionTest.java [Race Condition Tests - 10]
+│           ├── RedisWarmestDataStructureRaceConditionTest.java [Redis Race Condition Tests - 10]
 │           ├── WarmestDataApplicationTests.java
 │           ├── TestWarmestDataApplication.java
 │           └── TestcontainersConfiguration.java
@@ -127,9 +131,9 @@ warmest-data/
 | warmest:tail   | String | warmest key              |
 
 **Lua Scripts**:
-- ✅ `put.lua` (84 lines) - Atomic put with extracted functions and merged conditionals
-- ✅ `get.lua` (68 lines) - Atomic get with extracted functions and merged conditionals
-- ✅ `remove.lua` (57 lines) - Atomic remove with extracted functions and merged conditionals
+- ✅ `put.lua` (84 lines) – Atomic put with extracted functions and merged conditionals
+- ✅ `get.lua` (68 lines) – Atomic get with extracted functions and merged conditionals
+- ✅ `remove.lua` (57 lines) – Atomic remove with extracted functions and merged conditionals
 - ✅ `getWarmest.lua` (11 lines) - Tail retrieval
 
 **Key Features**:
@@ -142,9 +146,8 @@ warmest-data/
 ---
 
 ### PART 4: Testing ✅
-**Files**: 1 test class
-**Tests**: 21 passing  
-**Time**: 2.926s
+**Files**: 3 test classes
+**Tests**: 41 passing (21 functional + 20 race condition)
 
 **Test Coverage**:
 - ✅ All 21 scenarios from Part 1
@@ -153,6 +156,18 @@ warmest-data/
 - ✅ BeforeEach cleanup for test isolation
 - ✅ Validates Lua script correctness
 - ✅ Verifies O(1) performance
+
+**Race Condition Tests (10 scenarios × 2 profiles = 20 tests)**:
+- ✅ Concurrent get + remove on same key
+- ✅ Concurrent gets on same key (double moveToTail)
+- ✅ Concurrent get + put on same key (value mutation)
+- ✅ Multiple concurrent gets on different keys (linked list integrity)
+- ✅ Concurrent put + remove on same key
+- ✅ Warmest consistency under mixed concurrent operations
+- ✅ No deadlock under concurrent lock upgrade pattern
+- ✅ Per-thread key consistency (isolated put-get-remove cycles)
+- ✅ Get non-existent key during heavy writes
+- ✅ Warmest tracking correctness after concurrent chaos
 
 ---
 
@@ -191,7 +206,7 @@ docker-compose -f compose-multi.yaml up
 ### Run All Tests
 ```bash
 ./gradlew test
-# Runs 51 tests across 4 test classes
+# Runs 71 tests across 6 test classes
 ```
 
 ### Run By Suite
@@ -204,6 +219,12 @@ docker-compose -f compose-multi.yaml up
 
 # Part 4: Redis implementation
 ./gradlew test --tests RedisWarmestDataStructureTest
+
+# Race condition tests: In-memory
+./gradlew test --tests WarmestDataStructureRaceConditionTest
+
+# Race condition tests: Redis
+./gradlew test --tests RedisWarmestDataStructureRaceConditionTest
 ```
 
 ### Build Project
@@ -266,8 +287,9 @@ curl -X DELETE http://localhost:8080/data/temperature
 
 ### Testing
 - ✅ 100% interface coverage
-- ✅ 51 tests across 4 suites
+- ✅ 71 tests across 6 suites
 - ✅ Unit + Integration tests
+- ✅ Race condition / concurrency tests (10 scenarios × 2 profiles)
 - ✅ Testcontainers for Redis
 - ✅ Edge cases covered
 - ✅ Performance validated
@@ -306,12 +328,13 @@ curl -X DELETE http://localhost:8080/data/temperature
 ## 📚 Documentation
 
 ### Available Documents
-1. **PLAN-OUTPUT.md** - Complete technical specification
-2. **PART2-IMPLEMENTATION-COMPLETE.md** - REST API details
-3. **PART3-IMPLEMENTATION-COMPLETE.md** - Redis implementation
+1. **PLAN-OUTPUT.md** – Complete technical specification
+2. **PART2-IMPLEMENTATION-COMPLETE.md** – REST API details
+3. **PART3-IMPLEMENTATION-COMPLETE.md** – Redis implementation
 4. **PART4-IMPLEMENTATION-COMPLETE.md** - Testing summary
-5. **QUICKSTART.md** - Quick reference guide
-6. **This file** - Final project summary
+5. **RACE-CONDITION-ANALYSIS.md** – Thread safety analysis & race condition scenarios
+6. **QUICKSTART.md** - Quick reference guide
+7. **This file** – Final project summary
 
 ---
 
@@ -348,6 +371,7 @@ curl -X DELETE http://localhost:8080/data/temperature
 - [x] 100% pass rate
 - [x] Build successful
 - [x] All implementations verified
+- [x] Race condition tests (10 scenarios for in-memory + 10 for Redis)
 
 ---
 
@@ -374,7 +398,7 @@ Spring can directly serialize primitives, eliminating boilerplate for simple val
 ║                                                          ║
 ║     WarmestData Implementation: COMPLETE ✅              ║
 ║                                                          ║
-║     Total Tests:    51/51 passing (100%)                 ║
+║     Total Tests:    71/71 passing (100%)                 ║
 ║     Build Status:   SUCCESS                              ║
 ║     Code Quality:   Production Ready                     ║
 ║     Documentation:  Complete                             ║

@@ -52,6 +52,12 @@ docker-compose -f compose-multi.yaml up
 
 # Run specific test
 ./gradlew test --tests WarmestDataStructureTest
+
+# Run race condition tests (in-memory)
+./gradlew test --tests WarmestDataStructureRaceConditionTest
+
+# Run race condition tests (Redis)
+./gradlew test --tests RedisWarmestDataStructureRaceConditionTest
 ```
 
 ## 🔍 Verify
@@ -73,6 +79,6 @@ curl -X DELETE http://localhost:8080/data/temp
 ## 📊 Status
 
 - ✅ Build: SUCCESS
-- ✅ Tests: 51/51 passing (100%)
+- ✅ Tests: 71/71 passing (100%)
 - ✅ Docker: Ready
 - ✅ Multi-instance: Ready

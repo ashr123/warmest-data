@@ -653,6 +653,8 @@ src/test/java/io/github/ashr123/warmestdata/
 ├── WarmestDataStructureTest.java         (NEW - Unit tests for Part 1)
 ├── WarmestDataControllerTest.java        (NEW - Integration tests for Part 2)
 ├── RedisWarmestDataStructureTest.java    (NEW - Integration tests for Part 3)
+├── WarmestDataStructureRaceConditionTest.java      (NEW - Race condition tests for in-memory)
+├── RedisWarmestDataStructureRaceConditionTest.java  (NEW - Race condition tests for Redis)
 ├── TestcontainersConfiguration.java      (EXISTS)
 ├── WarmestDataApplicationTests.java      (EXISTS - MODIFY)
 ```
@@ -690,6 +692,28 @@ Tests:
 Using Testcontainers with Redis.
 
 Same 21 test cases but running against Redis implementation.
+
+### 4.4 Race Condition Tests
+
+**File**: `src/test/java/io/github/ashr123/warmestdata/WarmestDataStructureRaceConditionTest.java`
+
+10 concurrency scenarios for the in-memory (`!redis`) profile using multi-threaded stress tests:
+
+1. Concurrent `get` + `remove` on same key (node removed between read/write locks)
+2. Concurrent `get` + `get` on same key (double moveToTail)
+3. Concurrent `get` + `put` on same key (value mutation during lock gap)
+4. Multiple concurrent `get` on different keys (linked list integrity)
+5. Concurrent `put` + `remove` on same key
+6. Mixed concurrent operations stress test (warmest consistency)
+7. No deadlock under concurrent lock upgrade pattern
+8. Per-thread key consistency (isolated put-get-remove cycles)
+9. `get` non-existent key during heavy writes
+10. Warmest tracking correctness after concurrent chaos
+
+**File**: `src/test/java/io/github/ashr123/warmestdata/RedisWarmestDataStructureRaceConditionTest.java`
+
+Same 10 concurrency scenarios for the Redis (`redis`) profile using Testcontainers.
+Verifies Lua script atomicity under concurrent multi-client access.
 
 ---
 
@@ -746,13 +770,15 @@ Same 21 test cases but running against Redis implementation.
 36. [ ] Implement controller endpoint tests
 37. [ ] Create file `RedisWarmestDataStructureTest.java` with Testcontainers
 38. [ ] Implement all 21 test cases for Redis implementation
-39. [ ] Run all tests to verify implementation
+39. [ ] Create file `WarmestDataStructureRaceConditionTest.java` with 10 concurrency scenarios
+40. [ ] Create file `RedisWarmestDataStructureRaceConditionTest.java` with 10 concurrency scenarios
+41. [ ] Run all tests to verify implementation
 
 ### Final Verification
 
-40. [ ] Build project: `./gradlew build`
-41. [ ] Run local application: `./gradlew bootRun`
-42. [ ] Test endpoints manually with curl
-43. [ ] Build Docker image: `./gradlew bootJar && docker build -t warmest-data .`
-44. [ ] Deploy 3 instances: `docker-compose -f compose-multi.yaml up`
-45. [ ] Verify data synchronization across instances
+42. [ ] Build project: `./gradlew build`
+43. [ ] Run local application: `./gradlew bootRun`
+44. [ ] Test endpoints manually with curl
+45. [ ] Build Docker image: `./gradlew bootJar && docker build -t warmest-data .`
+46. [ ] Deploy 3 instances: `docker-compose -f compose-multi.yaml up`
+47. [ ] Verify data synchronization across instances
