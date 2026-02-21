@@ -1,8 +1,9 @@
 package io.github.ashr123.warmestdata.controller;
 
 import io.github.ashr123.warmestdata.dto.WarmestDataStructureInterface;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public class WarmestDataController {
@@ -14,25 +15,30 @@ public class WarmestDataController {
 	}
 
 	@PutMapping("/data/{key}")
-	public ResponseEntity<Integer> put(@PathVariable String key, @RequestBody int value) {
-		return ResponseEntity.ok(dataStructure.put(key, value));
+	@ResponseStatus(HttpStatus.OK)
+	public Integer put(@PathVariable String key, @RequestBody int value) {
+		return dataStructure.put(key, value);
 	}
 
 	@GetMapping("/data/{key}")
-	public ResponseEntity<Integer> get(@PathVariable String key) {
+	@ResponseStatus(HttpStatus.OK)
+	public Integer get(@PathVariable String key) {
 		Integer value = dataStructure.get(key);
-		return value == null ?
-				ResponseEntity.notFound().build() :
-				ResponseEntity.ok(value);
+		if (value == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Key not found: " + key);
+		}
+		return value;
 	}
 
 	@DeleteMapping("/data/{key}")
-	public ResponseEntity<Integer> remove(@PathVariable String key) {
-		return ResponseEntity.ok(dataStructure.remove(key));
+	@ResponseStatus(HttpStatus.OK)
+	public Integer remove(@PathVariable String key) {
+		return dataStructure.remove(key);
 	}
 
 	@GetMapping("/warmest")
-	public ResponseEntity<String> getWarmest() {
-		return ResponseEntity.ok(dataStructure.getWarmest());
+	@ResponseStatus(HttpStatus.OK)
+	public String getWarmest() {
+		return dataStructure.getWarmest();
 	}
 }

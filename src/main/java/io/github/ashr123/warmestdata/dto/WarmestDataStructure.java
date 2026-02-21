@@ -12,28 +12,24 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 
 	private final Map<String, Node> map = new HashMap<>();
 	private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-	private Node head = null;  // Oldest (coldest)
 	private Node tail = null;  // Newest (warmest)
 
 	/**
 	 * Detaches a node from its current position in the linked list.
-	 * Must be called while holding write lock.
 	 *
 	 * @param node the node to detach
+	 * @implNote Must be called while holding write lock.
 	 */
 	private void detach(Node node) {
 		if (node.prev != null) {
 			node.prev.next = node.next;
-		} else {
-			// Node was head
-			head = node.next;
 		}
 
-		if (node.next != null) {
-			node.next.prev = node.prev;
-		} else {
+		if (node.next == null) {
 			// Node was tail
 			tail = node.prev;
+		} else {
+			node.next.prev = node.prev;
 		}
 
 		node.prev = null;
@@ -42,9 +38,9 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 
 	/**
 	 * Attaches a node to the tail of the linked list (making it the warmest).
-	 * Must be called while holding write lock.
 	 *
 	 * @param node the node to attach to tail
+	 * @implNote Must be called while holding write lock.
 	 */
 	private void attachToTail(Node node) {
 		node.prev = tail;
@@ -54,17 +50,13 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 			tail.next = node;
 		}
 		tail = node;
-
-		if (head == null) {
-			head = node;
-		}
 	}
 
 	/**
 	 * Moves an existing node to the tail position (making it the warmest).
-	 * Must be called while holding write lock.
 	 *
 	 * @param node the node to move to tail
+	 * @implNote Must be called while holding write lock.
 	 */
 	private void moveToTail(Node node) {
 		if (node == tail) {
@@ -80,37 +72,68 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 		lock.writeLock().lock();
 		try {
 			Node existingNode = map.get(key);
-
-			if (existingNode != null) {
-				// Key exists: update value and move to tail
-				int previousValue = existingNode.value;
-				existingNode.value = value;
-				moveToTail(existingNode);
-				return previousValue;
-			} else {
-				// Key doesn't exist: create new node and add to tail
-				Node newNode = new Node(key, value);
-				map.put(key, newNode);
-				attachToTail(newNode);
-				return null;
-			}
+			return existingNode == null
+					? insertNewNode(key, value)
+					: updateExistingNode(existingNode, value);
 		} finally {
 			lock.writeLock().unlock();
 		}
 	}
 
+	private Integer insertNewNode(String key, int value) {
+		Node newNode = new Node(key, value);
+		map.put(key, newNode);
+		attachToTail(newNode);
+		return null;
+	}
+
+	private Integer updateExistingNode(Node node, int newValue) {
+		int previousValue = node.value;
+		node.value = newValue;
+		moveToTail(node);
+		return previousValue;
+	}
+
 	@Override
 	public Integer get(String key) {
+		Node node = findNodeWithReadLock(key);
+		if (node == null) {
+			return null;
+		}
+
+		if (isAlreadyWarmest(node)) {
+			return node.value;
+		}
+
+		return moveNodeAndGetValue(key, node);
+	}
+
+	private Node findNodeWithReadLock(String key) {
+		lock.readLock().lock();
+		try {
+			return map.get(key);
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
+
+	private boolean isAlreadyWarmest(Node node) {
+		return node == tail;
+	}
+
+	private Integer moveNodeAndGetValue(String key, Node node) {
 		lock.writeLock().lock();
 		try {
-			Node node = map.get(key);
-
-			if (node != null) {
-				moveToTail(node);
-				return node.value;
-			} else {
+			if (!map.containsKey(key)) {
 				return null;
 			}
+
+			if (isAlreadyWarmest(node)) {
+				return node.value;
+			}
+
+			moveToTail(node);
+			return node.value;
 		} finally {
 			lock.writeLock().unlock();
 		}
@@ -122,12 +145,11 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 		try {
 			Node node = map.remove(key);
 
-			if (node != null) {
-				detach(node);
-				return node.value;
-			} else {
+			if (node == null) {
 				return null;
 			}
+			detach(node);
+			return node.value;
 		} finally {
 			lock.writeLock().unlock();
 		}
@@ -137,10 +159,9 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 	public String getWarmest() {
 		lock.readLock().lock();
 		try {
-			if (tail == null) {
-				return null;
-			}
-			return tail.key;
+			return tail == null ?
+					null :
+					tail.key;
 		} finally {
 			lock.readLock().unlock();
 		}
@@ -151,10 +172,10 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 	 * Stores key, value, and references to previous and next nodes.
 	 */
 	private static class Node {
-		String key;
-		int value;
-		Node prev;
-		Node next;
+		private final String key;
+		private int value;
+		private Node prev;
+		private Node next;
 
 		Node(String key, int value) {
 			this.key = key;

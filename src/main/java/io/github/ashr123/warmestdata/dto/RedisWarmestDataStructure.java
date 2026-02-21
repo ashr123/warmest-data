@@ -1,6 +1,5 @@
-package io.github.ashr123.warmestdata.redis;
+package io.github.ashr123.warmestdata.dto;
 
-import io.github.ashr123.warmestdata.dto.WarmestDataStructureInterface;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
