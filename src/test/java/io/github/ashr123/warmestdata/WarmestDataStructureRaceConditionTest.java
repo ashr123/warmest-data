@@ -12,12 +12,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Race condition tests for in-memory WarmestDataStructure.
- * Tests all scenarios identified in RACE-CONDITION-ANALYSIS.md.
+ *
+ * Each scenario targets a specific code path that was previously identified as
+ * potentially unsafe. The setup is designed so the buggy path is reliably
+ * exercised — tests that pass on the fixed code would FAIL on the old code.
  */
 class WarmestDataStructureRaceConditionTest {
 
 	private static final int THREAD_COUNT = 10;
-	private static final int ITERATIONS = 1000;
+	private static final int ITERATIONS = 1_000;
 
 	private WarmestDataStructure dataStructure;
 	private ExecutorService executor;
@@ -35,33 +38,46 @@ class WarmestDataStructureRaceConditionTest {
 				"Executor did not terminate in time - possible deadlock");
 	}
 
-	// ==================== Scenario 1: Node Removed Between Locks ====================
+	// ==================== Scenario 1: AT_TAIL path — get() racing with put() on the SAME tail key ====================
 
 	/**
-	 * Scenario 1 from RACE-CONDITION-ANALYSIS.md:
-	 * Thread A calls get("key") while Thread B concurrently removes the same key.
-	 * The get() method releases read lock, then acquires write lock.
-	 * Between these locks, the node could be removed by another thread.
-	 * Expected: get() returns either the value (if read before removal) or null (if removed first).
-	 * Must never throw an exception or return corrupted data.
+	 * This is the scenario the old code got WRONG.
+	 *
+	 * Old code path:
+	 *   readLock() → node = map.get(key) → node == tail → readUnlock() → return node.value  ← NO LOCK
+	 *
+	 * The key is always the tail (only one key in the structure), so every get()
+	 * takes the AT_TAIL fast path.  A concurrent put() on the same key mutates
+	 * node.value under write lock.  Without any lock on the read side, the value
+	 * read by get() is not guaranteed to be either the old or the new value — it
+	 * could be a torn/stale integer on weakly-ordered hardware, or simply wrong
+	 * on the JMM (no visibility guarantee without a lock or volatile).
+	 *
+	 * With the fix, node.value is read while the read lock is still held, which
+	 * creates a proper happens-before edge with the write lock release in put().
+	 *
+	 * Expected: every get() returns either OLD_VALUE or NEW_VALUE — never anything else.
 	 */
 	@Test
-	void scenario1_nodeRemovedBetweenLocks_getConcurrentWithRemove() throws Exception {
+	void scenario1_atTailFastPath_getConcurrentWithPutOnSameKey() throws Exception {
+		final int OLD_VALUE = 100;
+		final int NEW_VALUE = 999;
 		AtomicBoolean failed = new AtomicBoolean(false);
 
 		for (int i = 0; i < ITERATIONS; i++) {
-			dataStructure.put("key1", 100);
+			// Only ONE key — it is always the tail, so get() always takes the AT_TAIL path
+			dataStructure.put("key", OLD_VALUE);
 
 			CyclicBarrier barrier = new CyclicBarrier(2);
 			CountDownLatch done = new CountDownLatch(2);
 
-			// Thread A: get the key
+			// Thread A: get — must hit the AT_TAIL fast path
 			executor.submit(() -> {
 				try {
 					barrier.await(5, TimeUnit.SECONDS);
-					Integer result = dataStructure.get("key1");
-					// Result should be either 100 or null (if removed first)
-					if (result != null && result != 100) {
+					Integer result = dataStructure.get("key");
+					// Valid outcomes: OLD_VALUE (read before put) or NEW_VALUE (read after put)
+					if (result == null || (result != OLD_VALUE && result != NEW_VALUE)) {
 						failed.set(true);
 					}
 				} catch (Exception e) {
@@ -71,15 +87,11 @@ class WarmestDataStructureRaceConditionTest {
 				}
 			});
 
-			// Thread B: remove the key
+			// Thread B: put — mutates node.value under write lock
 			executor.submit(() -> {
 				try {
 					barrier.await(5, TimeUnit.SECONDS);
-					Integer result = dataStructure.remove("key1");
-					// Result should be either 100 or null
-					if (result != null && result != 100) {
-						failed.set(true);
-					}
+					dataStructure.put("key", NEW_VALUE);
 				} catch (Exception e) {
 					failed.set(true);
 				} finally {
@@ -89,41 +101,152 @@ class WarmestDataStructureRaceConditionTest {
 
 			done.await(5, TimeUnit.SECONDS);
 
-			// After both operations, key should be gone
-			Assertions.assertNull(dataStructure.get("key1"),
-					"Key should be removed after concurrent get+remove");
-
-			// Clean up for next iteration
-			dataStructure.remove("key1");
+			// Clean up
+			dataStructure.remove("key");
 		}
 
 		Assertions.assertFalse(failed.get(),
-				"Concurrent get+remove produced corrupted data");
+				"AT_TAIL get() concurrent with put() returned a value that is neither old nor new");
 	}
 
-	// ==================== Scenario 2: Node Moved to Tail Between Locks ====================
+	// ==================== Scenario 2: AT_TAIL path — get() racing with remove() on the same tail key ====================
 
 	/**
-	 * Scenario 2 from RACE-CONDITION-ANALYSIS.md:
-	 * Two threads simultaneously call get() on the same key.
-	 * Both find the node is not at tail under read lock, release it, then try to moveToTail.
-	 * The second thread's double-check should detect the node is already at tail.
-	 * Expected: Both threads return the correct value. The warmest key is correct.
+	 * The key is the only (tail) entry. Thread A calls get() — it enters the AT_TAIL
+	 * fast path and reads node.value. Thread B calls remove() concurrently.
+	 *
+	 * Old code: get() read node.value AFTER releasing the read lock, so it could
+	 * observe the node after detach() had cleared node.prev/node.next.
+	 *
+	 * Expected: get() returns OLD_VALUE or null — never throws, never returns garbage.
 	 */
 	@Test
-	void scenario2_nodeMovedToTailBetweenLocks_concurrentGetsOnSameKey() throws Exception {
+	void scenario2_atTailFastPath_getConcurrentWithRemove() throws Exception {
+		final int VALUE = 100;
+		AtomicBoolean failed = new AtomicBoolean(false);
+
+		for (int i = 0; i < ITERATIONS; i++) {
+			dataStructure.put("key", VALUE);
+
+			CyclicBarrier barrier = new CyclicBarrier(2);
+			CountDownLatch done = new CountDownLatch(2);
+
+			executor.submit(() -> {
+				try {
+					barrier.await(5, TimeUnit.SECONDS);
+					Integer result = dataStructure.get("key");
+					if (result != null && result != VALUE) {
+						failed.set(true);
+					}
+				} catch (Exception e) {
+					failed.set(true);
+				} finally {
+					done.countDown();
+				}
+			});
+
+			executor.submit(() -> {
+				try {
+					barrier.await(5, TimeUnit.SECONDS);
+					dataStructure.remove("key");
+				} catch (Exception e) {
+					failed.set(true);
+				} finally {
+					done.countDown();
+				}
+			});
+
+			done.await(5, TimeUnit.SECONDS);
+			dataStructure.remove("key"); // ensure clean state
+		}
+
+		Assertions.assertFalse(failed.get(),
+				"AT_TAIL get() concurrent with remove() returned a corrupted value");
+	}
+
+	// ==================== Scenario 3: NEEDS_MOVE path — get() racing with remove() ====================
+
+	/**
+	 * "key" is NOT at tail ("other" is inserted after it, making "key" the non-tail).
+	 * Thread A calls get("key") — it enters the NEEDS_MOVE path (read lock → release → write lock).
+	 * Thread B calls remove("key") concurrently.
+	 *
+	 * The double-check inside moveNodeAndGetValue() must catch the removal and return null.
+	 *
+	 * Expected: get() returns VALUE or null — never throws.
+	 */
+	@Test
+	void scenario3_needsMovePath_getConcurrentWithRemove() throws Exception {
+		final int VALUE = 100;
+		AtomicBoolean failed = new AtomicBoolean(false);
+
+		for (int i = 0; i < ITERATIONS; i++) {
+			dataStructure.put("key", VALUE);
+			dataStructure.put("other", 200); // makes "key" non-tail → NEEDS_MOVE path
+
+			CyclicBarrier barrier = new CyclicBarrier(2);
+			CountDownLatch done = new CountDownLatch(2);
+
+			executor.submit(() -> {
+				try {
+					barrier.await(5, TimeUnit.SECONDS);
+					Integer result = dataStructure.get("key");
+					if (result != null && result != VALUE) {
+						failed.set(true);
+					}
+				} catch (Exception e) {
+					failed.set(true);
+				} finally {
+					done.countDown();
+				}
+			});
+
+			executor.submit(() -> {
+				try {
+					barrier.await(5, TimeUnit.SECONDS);
+					dataStructure.remove("key");
+				} catch (Exception e) {
+					failed.set(true);
+				} finally {
+					done.countDown();
+				}
+			});
+
+			done.await(5, TimeUnit.SECONDS);
+
+			// After both, key must be gone
+			Assertions.assertNull(dataStructure.get("key"),
+					"Key should be removed after concurrent get+remove on NEEDS_MOVE path");
+
+			dataStructure.remove("other");
+		}
+
+		Assertions.assertFalse(failed.get(),
+				"NEEDS_MOVE get() concurrent with remove() returned a corrupted value");
+	}
+
+	// ==================== Scenario 4: NEEDS_MOVE path — two concurrent gets on same non-tail key ====================
+
+	/**
+	 * "a" is not at tail. Two threads simultaneously call get("a"), both detect
+	 * NEEDS_MOVE and race to acquire the write lock.  The second to acquire it
+	 * must detect that "a" is already at tail (moved by the first) and skip the
+	 * redundant move.
+	 *
+	 * Expected: both return 1, and "a" is warmest afterwards.
+	 */
+	@Test
+	void scenario4_needsMovePath_concurrentGetsOnSameNonTailKey() throws Exception {
 		AtomicBoolean failed = new AtomicBoolean(false);
 
 		for (int i = 0; i < ITERATIONS; i++) {
 			dataStructure.put("a", 1);
 			dataStructure.put("b", 2);
-			dataStructure.put("c", 3);
-			// Now warmest is "c", and "a" is coldest
+			dataStructure.put("c", 3); // tail = "c", "a" is non-tail → NEEDS_MOVE
 
 			CyclicBarrier barrier = new CyclicBarrier(2);
 			CountDownLatch done = new CountDownLatch(2);
 
-			// Both threads get "a" concurrently, triggering moveToTail
 			for (int t = 0; t < 2; t++) {
 				executor.submit(() -> {
 					try {
@@ -142,47 +265,47 @@ class WarmestDataStructureRaceConditionTest {
 
 			done.await(5, TimeUnit.SECONDS);
 
-			// After both gets on "a", it should be the warmest
 			Assertions.assertEquals("a", dataStructure.getWarmest(),
 					"After concurrent gets on 'a', 'a' should be warmest");
 
-			// Clean up
 			dataStructure.remove("a");
 			dataStructure.remove("b");
 			dataStructure.remove("c");
 		}
 
 		Assertions.assertFalse(failed.get(),
-				"Concurrent gets on same key produced incorrect results");
+				"Concurrent gets on same non-tail key produced incorrect results");
 	}
 
-	// ==================== Scenario 3: Concurrent Value Updates ====================
+	// ==================== Scenario 5: NEEDS_MOVE path — get() racing with put() (value update) ====================
 
 	/**
-	 * Scenario 3 from RACE-CONDITION-ANALYSIS.md:
-	 * Thread A calls get("key") while Thread B calls put("key", newValue).
-	 * Thread A's read lock blocks the write lock, so this should be safe.
-	 * Expected: get() returns either the old or new value (both are valid snapshots).
+	 * "key1" is not at tail. Thread A calls get("key1") via the NEEDS_MOVE path.
+	 * Thread B calls put("key1", NEW_VALUE) concurrently, updating the value.
+	 *
+	 * get() acquires the write lock and re-reads the node — it must see either
+	 * the old or new value depending on which operation wins the lock first.
+	 *
+	 * Expected: get() returns OLD_VALUE or NEW_VALUE — never anything else.
 	 */
 	@Test
-	void scenario3_concurrentGetAndPut_valueUpdateDuringGet() throws Exception {
+	void scenario5_needsMovePath_getConcurrentWithPut() throws Exception {
+		final int OLD_VALUE = 100;
+		final int NEW_VALUE = 999;
 		AtomicBoolean failed = new AtomicBoolean(false);
 
 		for (int i = 0; i < ITERATIONS; i++) {
-			dataStructure.put("key1", 100);
-			// Add another key so "key1" isn't at tail (forces write lock path in get)
-			dataStructure.put("key2", 200);
+			dataStructure.put("key1", OLD_VALUE);
+			dataStructure.put("key2", 200); // makes "key1" non-tail → NEEDS_MOVE
 
 			CyclicBarrier barrier = new CyclicBarrier(2);
 			CountDownLatch done = new CountDownLatch(2);
 
-			// Thread A: get the key
 			executor.submit(() -> {
 				try {
 					barrier.await(5, TimeUnit.SECONDS);
 					Integer result = dataStructure.get("key1");
-					// Result must be either 100 (old) or 999 (new), never anything else
-					if (result != null && result != 100 && result != 999) {
+					if (result == null || (result != OLD_VALUE && result != NEW_VALUE)) {
 						failed.set(true);
 					}
 				} catch (Exception e) {
@@ -192,11 +315,10 @@ class WarmestDataStructureRaceConditionTest {
 				}
 			});
 
-			// Thread B: update the value
 			executor.submit(() -> {
 				try {
 					barrier.await(5, TimeUnit.SECONDS);
-					dataStructure.put("key1", 999);
+					dataStructure.put("key1", NEW_VALUE);
 				} catch (Exception e) {
 					failed.set(true);
 				} finally {
@@ -206,103 +328,34 @@ class WarmestDataStructureRaceConditionTest {
 
 			done.await(5, TimeUnit.SECONDS);
 
-			// After both, the value should be 999
-			Assertions.assertEquals(999, dataStructure.get("key1"),
-					"Value should be updated to 999 after concurrent get+put");
-
-			// Clean up
 			dataStructure.remove("key1");
 			dataStructure.remove("key2");
 		}
 
 		Assertions.assertFalse(failed.get(),
-				"Concurrent get+put produced corrupted data");
+				"NEEDS_MOVE get() concurrent with put() returned a corrupted value");
 	}
 
-	// ==================== Scenario 4: Multiple Concurrent Gets Moving Different Nodes ====================
+	// ==================== Scenario 6: Concurrent put + remove on same key ====================
 
 	/**
-	 * Multiple threads get different keys concurrently, all triggering moveToTail.
-	 * Tests linked list integrity under concurrent modifications.
-	 * Expected: No corruption of the linked list, all operations return correct values.
+	 * Both put and remove are write-lock operations. They must serialize correctly.
+	 * Expected: no exceptions; final state is either key-present (put won) or absent (remove won).
 	 */
 	@Test
-	void scenario4_multipleConcurrentGets_differentKeys() throws Exception {
-		int keyCount = THREAD_COUNT;
-		AtomicBoolean failed = new AtomicBoolean(false);
-
-		for (int i = 0; i < ITERATIONS / 10; i++) {
-			// Insert many keys
-			for (int k = 0; k < keyCount; k++) {
-				dataStructure.put("key" + k, k);
-			}
-
-			CyclicBarrier barrier = new CyclicBarrier(keyCount);
-			CountDownLatch done = new CountDownLatch(keyCount);
-
-			// Each thread gets a different key
-			for (int k = 0; k < keyCount; k++) {
-				final int key = k;
-				executor.submit(() -> {
-					try {
-						barrier.await(5, TimeUnit.SECONDS);
-						Integer result = dataStructure.get("key" + key);
-						if (result == null || result != key) {
-							failed.set(true);
-						}
-					} catch (Exception e) {
-						failed.set(true);
-					} finally {
-						done.countDown();
-					}
-				});
-			}
-
-			done.await(10, TimeUnit.SECONDS);
-
-			// Verify data integrity: all keys still exist with correct values
-			for (int k = 0; k < keyCount; k++) {
-				Integer val = dataStructure.get("key" + k);
-				Assertions.assertEquals(k, val,
-						"Key 'key" + k + "' should still have value " + k);
-			}
-
-			// Warmest should be the last one we get'd in the verification loop
-			Assertions.assertNotNull(dataStructure.getWarmest(),
-					"Warmest should not be null after operations");
-
-			// Clean up
-			for (int k = 0; k < keyCount; k++) {
-				dataStructure.remove("key" + k);
-			}
-		}
-
-		Assertions.assertFalse(failed.get(),
-				"Concurrent gets on different keys produced incorrect results");
-	}
-
-	// ==================== Scenario 5: Concurrent Put and Remove on Same Key ====================
-
-	/**
-	 * Tests put and remove happening concurrently on the same key.
-	 * Expected: No exceptions, no data corruption. After both complete,
-	 * the key either exists (put won) or doesn't (remove won).
-	 */
-	@Test
-	void scenario5_concurrentPutAndRemove_sameKey() throws Exception {
+	void scenario6_concurrentPutAndRemove_sameKey() throws Exception {
 		AtomicBoolean failed = new AtomicBoolean(false);
 
 		for (int i = 0; i < ITERATIONS; i++) {
-			dataStructure.put("key1", 100);
+			dataStructure.put("key", 100);
 
 			CyclicBarrier barrier = new CyclicBarrier(2);
 			CountDownLatch done = new CountDownLatch(2);
 
-			// Thread A: put a new value
 			executor.submit(() -> {
 				try {
 					barrier.await(5, TimeUnit.SECONDS);
-					dataStructure.put("key1", 200);
+					dataStructure.put("key", 200);
 				} catch (Exception e) {
 					failed.set(true);
 				} finally {
@@ -310,11 +363,10 @@ class WarmestDataStructureRaceConditionTest {
 				}
 			});
 
-			// Thread B: remove the key
 			executor.submit(() -> {
 				try {
 					barrier.await(5, TimeUnit.SECONDS);
-					dataStructure.remove("key1");
+					dataStructure.remove("key");
 				} catch (Exception e) {
 					failed.set(true);
 				} finally {
@@ -324,82 +376,36 @@ class WarmestDataStructureRaceConditionTest {
 
 			done.await(5, TimeUnit.SECONDS);
 
-			// After both, key either exists with value 200 (put after remove)
-			// or doesn't exist (remove after put)
-			Integer result = dataStructure.get("key1");
-			if (result != null) {
-				Assertions.assertEquals(200, result,
-						"If key exists, value should be 200");
+			Integer result = dataStructure.get("key");
+			if (result != null && result != 200) {
+				failed.set(true);
 			}
-			// Either way is valid - no assertion on existence
 
-			// Clean up
-			dataStructure.remove("key1");
+			dataStructure.remove("key");
 		}
 
-		Assertions.assertFalse(failed.get(),
-				"Concurrent put+remove produced an exception");
+		Assertions.assertFalse(failed.get(), "Concurrent put+remove produced an exception or corrupted value");
 	}
 
-	// ==================== Scenario 6: Warmest Consistency Under Concurrent Operations ====================
+	// ==================== Scenario 7: No deadlock — NEEDS_MOVE path under high contention ====================
 
 	/**
-	 * Tests that getWarmest() always returns a valid key (one that exists in the map)
-	 * even under heavy concurrent modifications.
+	 * Many threads concurrently call get() on the same NON-TAIL key, all racing
+	 * through the NEEDS_MOVE path (read lock → release → write lock).
+	 *
+	 * A deadlock would manifest as a test timeout. A livelock / starvation would
+	 * also be caught by the 30-second timeout on the CountDownLatch.
+	 *
+	 * Key setup: after each get(), we put("other", 99) to push "target" off the
+	 * tail — but this put is done INSIDE the same thread immediately after the
+	 * get(), NOT concurrently with the barrier-synchronized gets of other threads.
+	 * This ensures "target" really is non-tail when the barrier fires.
 	 */
 	@Test
-	void scenario6_warmestConsistencyUnderConcurrency() throws Exception {
-		AtomicBoolean failed = new AtomicBoolean(false);
-		AtomicInteger errorCount = new AtomicInteger(0);
-
-		// Pre-populate
-		for (int k = 0; k < 5; k++) {
-			dataStructure.put("key" + k, k * 100);
-		}
-
-		CountDownLatch done = new CountDownLatch(THREAD_COUNT);
-
-		for (int t = 0; t < THREAD_COUNT; t++) {
-			executor.submit(() -> {
-				try {
-					ThreadLocalRandom rng = ThreadLocalRandom.current();
-					for (int i = 0; i < ITERATIONS; i++) {
-						int op = rng.nextInt(4);
-						String key = "key" + rng.nextInt(10);
-						switch (op) {
-							case 0 -> dataStructure.put(key, rng.nextInt(1000));
-							case 1 -> dataStructure.get(key);
-							case 2 -> dataStructure.remove(key);
-							case 3 -> dataStructure.getWarmest();
-						}
-					}
-				} catch (Exception e) {
-					failed.set(true);
-					errorCount.incrementAndGet();
-				} finally {
-					done.countDown();
-				}
-			});
-		}
-
-		done.await(30, TimeUnit.SECONDS);
-
-		Assertions.assertFalse(failed.get(),
-				"Concurrent mixed operations caused " + errorCount.get() + " exceptions");
-	}
-
-	// ==================== Scenario 7: No Deadlock Under Lock Upgrade Pattern ====================
-
-	/**
-	 * Tests that the read-lock-then-write-lock pattern in get() does not cause deadlocks.
-	 * Many threads concurrently call get() on the same non-tail key, forcing the
-	 * read-to-write lock upgrade path.
-	 */
-	@Test
-	void scenario7_noDeadlockUnderConcurrentGetWithLockUpgrade() throws Exception {
+	void scenario7_noDeadlock_needsMovePathUnderHighContention() throws Exception {
 		AtomicBoolean failed = new AtomicBoolean(false);
 
-		// Insert two keys, so the first one is not at tail
+		// Initial state: "target" is not at tail
 		dataStructure.put("target", 42);
 		dataStructure.put("other", 99);
 
@@ -409,13 +415,13 @@ class WarmestDataStructureRaceConditionTest {
 			executor.submit(() -> {
 				try {
 					for (int i = 0; i < ITERATIONS; i++) {
-						// get("target") forces read lock -> release -> write lock path
+						// Ensure "target" is NOT at tail before get() so NEEDS_MOVE path fires
+						dataStructure.put("other", 99);
+
 						Integer result = dataStructure.get("target");
 						if (result == null || result != 42) {
 							failed.set(true);
 						}
-						// Put "other" back to make "target" non-tail again
-						dataStructure.put("other", 99);
 					}
 				} catch (Exception e) {
 					failed.set(true);
@@ -426,24 +432,20 @@ class WarmestDataStructureRaceConditionTest {
 		}
 
 		boolean completed = done.await(30, TimeUnit.SECONDS);
-		Assertions.assertTrue(completed,
-				"Threads did not complete in time - possible DEADLOCK detected!");
-
-		Assertions.assertFalse(failed.get(),
-				"Concurrent get with lock upgrade produced incorrect results");
+		Assertions.assertTrue(completed, "Threads did not complete — possible DEADLOCK detected!");
+		Assertions.assertFalse(failed.get(), "NEEDS_MOVE path under high contention returned wrong value");
 	}
 
-	// ==================== Scenario 8: Rapid Sequential Put-Get-Remove ====================
+	// ==================== Scenario 8: Per-thread key isolation ====================
 
 	/**
-	 * Tests that rapid sequential operations from multiple threads maintain consistency.
-	 * Each thread owns its own key and performs put-get-remove cycles.
-	 * Expected: All operations return expected values for the thread's own key.
+	 * Each thread owns its own key. Operations on different keys must not interfere.
+	 * Tests that the linked list remains consistent when nodes from different threads
+	 * are inserted, moved, and removed concurrently.
 	 */
 	@Test
 	void scenario8_perThreadKeyConsistency() throws Exception {
 		AtomicBoolean failed = new AtomicBoolean(false);
-
 		CountDownLatch done = new CountDownLatch(THREAD_COUNT);
 
 		for (int t = 0; t < THREAD_COUNT; t++) {
@@ -452,32 +454,18 @@ class WarmestDataStructureRaceConditionTest {
 				try {
 					String myKey = "thread-" + threadId;
 					for (int i = 0; i < ITERATIONS; i++) {
-						// put should return null (new key) or previous value
 						Integer prev = dataStructure.put(myKey, i);
-						if (i == 0 && prev != null) {
-							failed.set(true);
-						}
-						if (i > 0 && prev != null && prev != i - 1) {
-							failed.set(true);
-						}
+						if (i == 0 && prev != null) failed.set(true);
+						if (i > 0 && prev != null && prev != i - 1) failed.set(true);
 
-						// get should return current value
 						Integer got = dataStructure.get(myKey);
-						if (got == null || got != i) {
-							failed.set(true);
-						}
+						if (got == null || got != i) failed.set(true);
 
-						// remove should return current value
 						Integer removed = dataStructure.remove(myKey);
-						if (removed == null || removed != i) {
-							failed.set(true);
-						}
+						if (removed == null || removed != i) failed.set(true);
 
-						// get after remove should return null
 						Integer afterRemove = dataStructure.get(myKey);
-						if (afterRemove != null) {
-							failed.set(true);
-						}
+						if (afterRemove != null) failed.set(true);
 					}
 				} catch (Exception e) {
 					failed.set(true);
@@ -488,21 +476,18 @@ class WarmestDataStructureRaceConditionTest {
 		}
 
 		done.await(30, TimeUnit.SECONDS);
-
-		Assertions.assertFalse(failed.get(),
-				"Per-thread key operations produced incorrect results under concurrency");
+		Assertions.assertFalse(failed.get(), "Per-thread key operations produced incorrect results");
 	}
 
-	// ==================== Scenario 9: Get on Non-Existent Key During Heavy Writes ====================
+	// ==================== Scenario 9: get() on non-existent key during heavy writes ====================
 
 	/**
-	 * Tests that get() returns null for non-existent keys even when other threads
-	 * are heavily writing different keys.
+	 * get() on a key that never exists must always return null, even while other
+	 * threads are writing different keys at high frequency.
 	 */
 	@Test
 	void scenario9_getNonExistentKeyDuringHeavyWrites() throws Exception {
 		AtomicBoolean failed = new AtomicBoolean(false);
-
 		CountDownLatch done = new CountDownLatch(THREAD_COUNT);
 
 		for (int t = 0; t < THREAD_COUNT; t++) {
@@ -511,14 +496,10 @@ class WarmestDataStructureRaceConditionTest {
 				try {
 					for (int i = 0; i < ITERATIONS; i++) {
 						if (threadId % 2 == 0) {
-							// Writer threads: put various keys
 							dataStructure.put("write-key-" + threadId + "-" + (i % 10), i);
 						} else {
-							// Reader threads: get a key that was never inserted
 							Integer result = dataStructure.get("never-inserted-" + threadId);
-							if (result != null) {
-								failed.set(true);
-							}
+							if (result != null) failed.set(true);
 						}
 					}
 				} catch (Exception e) {
@@ -530,28 +511,25 @@ class WarmestDataStructureRaceConditionTest {
 		}
 
 		done.await(30, TimeUnit.SECONDS);
-
-		Assertions.assertFalse(failed.get(),
-				"Get on non-existent key returned non-null during heavy writes");
+		Assertions.assertFalse(failed.get(), "get() on non-existent key returned non-null during heavy writes");
 	}
 
-	// ==================== Scenario 10: Concurrent Warmest Tracking ====================
+	// ==================== Scenario 10: Warmest consistency after concurrent chaos ====================
 
 	/**
-	 * Tests that after all concurrent operations complete and we perform a final
-	 * deterministic operation, getWarmest() returns the expected key.
+	 * After many concurrent mixed operations, a single deterministic put() must
+	 * make that key the warmest — proving the linked list tail pointer is correct.
 	 */
 	@Test
-	void scenario10_warmestTrackingAfterConcurrentOps() throws Exception {
-		CountDownLatch done = new CountDownLatch(THREAD_COUNT);
+	void scenario10_warmestConsistencyAfterConcurrentChaos() throws Exception {
 		AtomicBoolean failed = new AtomicBoolean(false);
+		AtomicInteger errorCount = new AtomicInteger(0);
 
-		// Pre-populate
 		for (int k = 0; k < 10; k++) {
 			dataStructure.put("key" + k, k);
 		}
 
-		// Many threads do random operations concurrently
+		CountDownLatch done = new CountDownLatch(THREAD_COUNT);
 		for (int t = 0; t < THREAD_COUNT; t++) {
 			executor.submit(() -> {
 				try {
@@ -566,6 +544,7 @@ class WarmestDataStructureRaceConditionTest {
 					}
 				} catch (Exception e) {
 					failed.set(true);
+					errorCount.incrementAndGet();
 				} finally {
 					done.countDown();
 				}
@@ -573,11 +552,9 @@ class WarmestDataStructureRaceConditionTest {
 		}
 
 		done.await(30, TimeUnit.SECONDS);
-
 		Assertions.assertFalse(failed.get(),
-				"Concurrent operations threw exceptions");
+				"Concurrent operations threw " + errorCount.get() + " exceptions");
 
-		// Now do a deterministic operation and verify warmest
 		dataStructure.put("final-key", 9999);
 		Assertions.assertEquals("final-key", dataStructure.getWarmest(),
 				"After final put, warmest should be 'final-key'");

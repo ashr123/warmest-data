@@ -101,40 +101,49 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 
 	@Override
 	public Integer get(String key) {
-		Node node = findNodeWithReadLock(key);
-		if (node == null) {
-			return null;
-		}
-
-		if (isAlreadyWarmest(node)) {
-			return node.value;
-		}
-
-		return moveNodeAndGetValue(key, node);
+		ReadLockResult readResult = tryGetWithReadLock(key);
+		return switch (readResult.status()) {
+			case NOT_FOUND -> null;
+			case AT_TAIL   -> readResult.value();
+			case NEEDS_MOVE -> moveNodeAndGetValue(key);
+		};
 	}
 
-	private Node findNodeWithReadLock(String key) {
+	private enum GetStatus { NOT_FOUND, AT_TAIL, NEEDS_MOVE }
+
+	private record ReadLockResult(GetStatus status, Integer value) {}
+
+	/**
+	 * Reads the node under read lock.
+	 * <ul>
+	 *   <li>NOT_FOUND  – key absent</li>
+	 *   <li>AT_TAIL    – key found and already warmest; value is safe to return (lock still held)</li>
+	 *   <li>NEEDS_MOVE – key found but must be moved to tail under write lock</li>
+	 * </ul>
+	 */
+	private ReadLockResult tryGetWithReadLock(String key) {
 		lock.readLock().lock();
 		try {
-			return map.get(key);
+			Node node = map.get(key);
+			if (node == null) {
+				return new ReadLockResult(GetStatus.NOT_FOUND, null);
+			}
+			if (node == tail) {
+				// node.value is safe: read lock prevents any writer from mutating it
+				return new ReadLockResult(GetStatus.AT_TAIL, node.value);
+			}
+			return new ReadLockResult(GetStatus.NEEDS_MOVE, null);
 		} finally {
 			lock.readLock().unlock();
 		}
 	}
 
-	private boolean isAlreadyWarmest(Node node) {
-		return node == tail;
-	}
-
-	private Integer moveNodeAndGetValue(String key, Node node) {
+	private Integer moveNodeAndGetValue(String key) {
 		lock.writeLock().lock();
 		try {
-			if (!map.containsKey(key)) {
+			Node node = map.get(key);
+			if (node == null) {
 				return null;
-			}
-
-			if (isAlreadyWarmest(node)) {
-				return node.value;
 			}
 
 			moveToTail(node);
