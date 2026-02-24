@@ -4,23 +4,26 @@
 
 ## Implementation Status: ✅ COMPLETE
 
-All 71 tests passing (21 Part 1 + 8 Part 2 + 21 Part 4 Redis tests + 10 In-Memory Race Condition + 10 Redis Race Condition + 1 App Context).
+All 70 tests passing (21 Part 1 + 8 Part 2 + 21 Part 4 Redis tests + 10 In-Memory Race Condition + 10 Redis Race Condition).
 Build successful. Full test coverage achieved.
 
 ## Files Created:
 
-### 1. Redis Integration Tests
+### 1. Abstract Base Classes
 
-- **RedisWarmestDataStructureTest.java** – Complete test suite using Testcontainers
+- **AbstractWarmestDataStructureTest.java** – 21 functional test scenarios (inherited by both profiles)
+- **AbstractRaceConditionTest.java** – 10 race condition scenarios (inherited by both profiles)
 
-### 2. Race Condition Tests
+### 2. Profile-Specific Subclasses
 
-- **WarmestDataStructureRaceConditionTest.java** - 10 concurrency scenarios for in-memory profile
-- **RedisWarmestDataStructureRaceConditionTest.java** - 10 concurrency scenarios for Redis profile
+- **WarmestDataStructureTest.java** – Runs functional tests against in-memory implementation (default profile)
+- **RedisWarmestDataStructureTest.java** – Runs functional tests against Redis implementation (`@ActiveProfiles("redis")`)
+- **WarmestDataStructureRaceConditionTest.java** – Runs race condition tests against in-memory implementation (default profile)
+- **RedisWarmestDataStructureRaceConditionTest.java** – Runs race condition tests against Redis implementation (`@ActiveProfiles("redis")`)
 
 ## Test Results Summary:
 
-### Total Test Coverage: 71/71 Tests Passing ✅
+### Total Test Coverage: 70/70 Tests Passing ✅
 
 | Test Suite                                 | Tests  | Passed | Failed | Time   | Description                             |
 |--------------------------------------------|--------|--------|--------|--------|-----------------------------------------|
@@ -29,8 +32,7 @@ Build successful. Full test coverage achieved.
 | RedisWarmestDataStructureTest              | 21     | 21     | 0      | 2.465s | Redis + Lua scripts with Testcontainers |
 | WarmestDataStructureRaceConditionTest      | 10     | 10     | 0      | ~5s    | In-memory race condition tests          |
 | RedisWarmestDataStructureRaceConditionTest | 10     | 10     | 0      | ~15s   | Redis race condition tests              |
-| WarmestDataApplicationTests                | 1      | 1      | 0      | 0.308s | Spring context loading                  |
-| **TOTAL**                                  | **71** | **71** | **0**  |        | **100% Pass Rate**                      |
+| **TOTAL**                                  | **70** | **70** | **0**  |        | **100% Pass Rate**                      |
 
 ## RedisWarmestDataStructureTest Details:
 
@@ -73,38 +75,38 @@ Build successful. Full test coverage achieved.
 
 ## Implementation Features:
 
+### Abstract Base Class Pattern
+
+All functional and race condition tests are defined once in abstract base classes.
+Profile-specific subclasses are thin wrappers that only carry annotations:
+
+```
+AbstractWarmestDataStructureTest       ← 21 @Test, @Autowired, @BeforeEach cleanup
+├── WarmestDataStructureTest           @SpringBootTest (default profile → in-memory)
+└── RedisWarmestDataStructureTest      @SpringBootTest @ActiveProfiles("redis") @Import(Testcontainers)
+
+AbstractRaceConditionTest              ← 10 @Test, 1 000 iterations, CyclicBarrier sync
+├── WarmestDataStructureRaceConditionTest      @SpringBootTest (default profile → in-memory)
+└── RedisWarmestDataStructureRaceConditionTest @SpringBootTest @ActiveProfiles("redis") @Import(Testcontainers)
+```
+
 ### Test Isolation
 
-Each test starts with a clean Redis state:
+Each test starts with a clean state (works for both in-memory and Redis):
 
 ```java
-
 @BeforeEach
-void setUp() {
-	// Clear Redis data before each test
+void clearDataStructure() {
 	while (dataStructure.getWarmest() != null) {
 		dataStructure.remove(dataStructure.getWarmest());
 	}
 }
 ```
 
-### Testcontainers Integration
-
-- Automatically starts Redis container
-- Uses TestcontainersConfiguration provided by Spring Boot
-- Container lifecycle managed by framework
-- Tests run against real Redis instance
-
 ### Profile Activation
 
-```java
-@ActiveProfiles("redis")
-```
-
-- Activates Redis profile
-- Loads RedisWarmestDataStructure implementation
-- Loads RedisConfig with Lua scripts
-- Uses Redis from Testcontainers
+- **In-memory tests**: No `@ActiveProfiles` — default profile → `@Profile("!redis")` selects `WarmestDataStructure`
+- **Redis tests**: `@ActiveProfiles("redis")` + `@Import(TestcontainersConfiguration.class)` → selects `RedisWarmestDataStructure`
 
 ## Verification of Redis Implementation:
 
@@ -147,7 +149,7 @@ All operations execute in constant time:
 - **Unit Tests**: 21 tests (WarmestDataStructureTest)
 - **Integration Tests**: 29 tests (Controller + Redis)
 - **Concurrency Tests**: 20 tests (Race condition tests for both profiles)
-- **Total**: 71 tests
+- **Total**: 70 tests
 
 ### Test Quality Metrics:
 
@@ -258,7 +260,7 @@ docker-compose -f compose-multi.yaml up
 
 ### Summary:
 
-- **Total Tests**: 71/71 passing (100%)
+- **Total Tests**: 70/70 passing (100%)
 - **Total Lines of Code**: ~1,500+ lines
 - **Test Coverage**: Complete
 - **Build Status**: SUCCESS
@@ -272,7 +274,7 @@ docker-compose -f compose-multi.yaml up
 4. ✅ Atomic operations via Lua scripts
 5. ✅ Horizontal scalability (3+ instances)
 6. ✅ Docker containerization
-7. ✅ Comprehensive test suite (71 tests, including 20 race condition tests)
+7. ✅ Comprehensive test suite (70 tests, including 20 race condition tests)
 8. ✅ Profile-based configuration (local/redis)
 
 ### Ready For:
@@ -297,4 +299,4 @@ The implementation successfully demonstrates:
 - Docker containerization
 - Multi-instance deployment
 
-**100% test coverage achieved with 71/71 tests passing!** 🎉
+**100% test coverage achieved with 70/70 tests passing!** 🎉

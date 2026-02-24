@@ -3,13 +3,13 @@
 **Project**: WarmestData - Thread-Safe Warmest Key Tracker  
 **Date Completed**: February 21, 2026  
 **Status**: ✅ PRODUCTION READY  
-**Test Coverage**: 71/71 tests passing (100%)
+**Test Coverage**: 70/70 tests passing (100%)
 
 ---
 
 ## 📊 Final Test Results
 
-### Complete Test Suite: 71/71 PASSING ✅
+### Complete Test Suite: 70/70 PASSING ✅
 
 | Test Suite                                 | Tests  | Passed | Failed | Time   |
 |--------------------------------------------|--------|--------|--------|--------|
@@ -18,8 +18,7 @@
 | RedisWarmestDataStructureTest              | 21     | 21     | 0      | 2.465s |
 | WarmestDataStructureRaceConditionTest      | 10     | 10     | 0      | ~5s    |
 | RedisWarmestDataStructureRaceConditionTest | 10     | 10     | 0      | ~15s   |
-| WarmestDataApplicationTests                | 1      | 1      | 0      | 0.308s |
-| **TOTAL**                                  | **71** | **71** | **0**  |        |
+| **TOTAL**                                  | **70** | **70** | **0**  |        |
 
 ✅ 100% Pass Rate  
 ✅ All implementations verified  
@@ -50,12 +49,13 @@ warmest-data/
 │   │           └── getWarmest.lua
 │   └── test/
 │       └── java/io/github/ashr123/warmestdata/
-│           ├── WarmestDataStructureTest.java           [Part 1 Tests - 21]
+│           ├── AbstractWarmestDataStructureTest.java   [Base class - 21 functional tests]
+│           ├── AbstractRaceConditionTest.java          [Base class - 10 race condition tests]
+│           ├── WarmestDataStructureTest.java           [In-memory profile - extends base]
 │           ├── WarmestDataControllerTest.java          [Part 2 Tests - 8]
-│           ├── RedisWarmestDataStructureTest.java      [Part 4 Tests - 21]
-│           ├── WarmestDataStructureRaceConditionTest.java [Race Condition Tests - 10]
-│           ├── RedisWarmestDataStructureRaceConditionTest.java [Redis Race Condition Tests - 10]
-│           ├── WarmestDataApplicationTests.java
+│           ├── RedisWarmestDataStructureTest.java      [Redis profile - extends base]
+│           ├── WarmestDataStructureRaceConditionTest.java [In-memory profile - extends base]
+│           ├── RedisWarmestDataStructureRaceConditionTest.java [Redis profile - extends base]
 │           ├── TestWarmestDataApplication.java
 │           └── TestcontainersConfiguration.java
 ├── Dockerfile                                           [Part 3 Container]
@@ -146,8 +146,14 @@ warmest-data/
 ---
 
 ### PART 4: Testing ✅
-**Files**: 3 test classes
-**Tests**: 41 passing (21 functional + 20 race condition)
+**Files**: 2 abstract base classes + 4 profile-specific subclasses + 1 controller test
+**Tests**: 70 passing (21 × 2 functional + 10 × 2 race condition + 8 controller)
+
+**Test Architecture**:
+- ✅ Abstract base classes define all test logic once
+- ✅ Thin subclasses select the profile (default = in-memory, `redis` = Redis)
+- ✅ `@SpringBootTest` with no active profile → `@Profile("!redis")` selects `WarmestDataStructure`
+- ✅ `@ActiveProfiles("redis")` + Testcontainers → selects `RedisWarmestDataStructure`
 
 **Test Coverage**:
 - ✅ All 21 scenarios from Part 1
@@ -206,7 +212,7 @@ docker-compose -f compose-multi.yaml up
 ### Run All Tests
 ```bash
 ./gradlew test
-# Runs 71 tests across 6 test classes
+# Runs 70 tests across 5 test classes
 ```
 
 ### Run By Suite
@@ -287,7 +293,7 @@ curl -X DELETE http://localhost:8080/data/temperature
 
 ### Testing
 - ✅ 100% interface coverage
-- ✅ 71 tests across 6 suites
+- ✅ 70 tests across 5 suites
 - ✅ Unit + Integration tests
 - ✅ Race condition / concurrency tests (10 scenarios × 2 profiles)
 - ✅ Testcontainers for Redis
@@ -398,7 +404,7 @@ Spring can directly serialize primitives, eliminating boilerplate for simple val
 ║                                                          ║
 ║     WarmestData Implementation: COMPLETE ✅              ║
 ║                                                          ║
-║     Total Tests:    71/71 passing (100%)                 ║
+║     Total Tests:    70/70 passing (100%)                 ║
 ║     Build Status:   SUCCESS                              ║
 ║     Code Quality:   Production Ready                     ║
 ║     Documentation:  Complete                             ║

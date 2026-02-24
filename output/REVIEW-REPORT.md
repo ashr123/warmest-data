@@ -16,7 +16,7 @@
 **Overall Compliance**: 98.5%  
 **Critical Deviations**: 0  
 **Minor Deviations**: 2 (both acceptable optimizations)  
-**Test Coverage**: 71/71 tests passing (100%)  
+**Test Coverage**: 70/70 tests passing (100%)  
 **Build Status**: SUCCESS
 
 ---
@@ -231,16 +231,17 @@
 
 ### PART 4: Testing
 
-#### RedisWarmestDataStructureTest.java ✅
+#### Test Architecture ✅
 
-**Status**: MATCHES PLAN EXACTLY
+**Status**: UNIFIED ABSTRACT BASE CLASS PATTERN
 
-**Test Structure**:
+**Structure**:
 
-- ✅ @SpringBootTest annotation
-- ✅ @ActiveProfiles("redis")
-- ✅ @Import(TestcontainersConfiguration.class)
-- ✅ @BeforeEach cleanup logic
+- ✅ `AbstractWarmestDataStructureTest` — 21 functional tests, `@Autowired` interface
+- ✅ `AbstractRaceConditionTest` — 10 race condition tests, 1 000 iterations
+- ✅ In-memory subclasses: `@SpringBootTest` with default profile (no `@ActiveProfiles`)
+- ✅ Redis subclasses: `@SpringBootTest` + `@ActiveProfiles("redis")` + `@Import(TestcontainersConfiguration.class)`
+- ✅ `@BeforeEach` cleanup logic in abstract base
 
 **Test Coverage**:
 
@@ -248,9 +249,10 @@
 |-----------------------|--------|-------|----------------|-------|
 | Single-key ops (1-10) | 10     | ✅     | ✅              | ✅     |
 | Multi-key ops (11-21) | 11     | ✅     | ✅              | ✅     |
-| **Total**             | **21** | **✅** | **✅**          | **✅** |
+| Race conditions       | 10     | ✅     | ✅              | ✅     |
+| **Total per profile** | **31** | **✅** | **✅**          | **✅** |
 
-**Test Results**: 21/21 passing ✅
+**Test Results**: 62/62 passing across both profiles + 8 controller tests = 70/70 ✅
 
 ---
 
@@ -293,14 +295,12 @@
 | RedisWarmestDataStructureTest              | 21     | 21     | 0      |
 | WarmestDataStructureRaceConditionTest      | 10     | 10     | 0      |
 | RedisWarmestDataStructureRaceConditionTest | 10     | 10     | 0      |
-| WarmestDataApplicationTests                | 1      | 1      | 0      |
-| **TOTAL**                                  | **71** | **71** | **0**  |
+| **TOTAL**                                  | **70** | **70** | **0**  |
 
 **Pass Rate**: 100% ✅  
 **Build Status**: SUCCESS ✅  
-**Expected Test Count**: 70 (21 + 8 + 21 + 10 + 10)  
-**Actual Test Count**: 71 (includes WarmestDataApplicationTests)  
-**Coverage**: EXCEEDS PLAN ✅
+**Test Count**: 70 (21 + 8 + 21 + 10 + 10)  
+**Coverage**: MATCHES PLAN ✅
 
 ---
 
@@ -352,14 +352,14 @@
 ### Part 4: Testing (7/7) ✅
 
 - [x] RedisWarmestDataStructureTest.java created
-- [x] All 21 test cases implemented
-- [x] Testcontainers integration
-- [x] Profile activation
-- [x] BeforeEach cleanup
-- [x] All tests passing
+- [x] AbstractWarmestDataStructureTest — 21 tests in shared base class
+- [x] AbstractRaceConditionTest — 10 race condition scenarios in shared base class
+- [x] In-memory subclasses (default profile, no @ActiveProfiles)
+- [x] Redis subclasses (@ActiveProfiles("redis") + Testcontainers)
+- [x] WarmestDataControllerTest — 8 controller tests
+- [x] BeforeEach cleanup in abstract bases
+- [x] All tests passing (70/70)
 - [x] Build successful
-- [x] Race condition tests: WarmestDataStructureRaceConditionTest (10 scenarios)
-- [x] Race condition tests: RedisWarmestDataStructureRaceConditionTest (10 scenarios)
 
 **Total**: 40/40 checklist items completed ✅
 
@@ -393,7 +393,7 @@
 4. All 4 REST endpoints match specification
 5. All 4 Lua scripts implement exact logic from plan
 6. All configuration files match requirements
-7. Test coverage meets/exceeds requirements (71/71 passing, including 20 race condition tests)
+7. Test coverage meets/exceeds requirements (70/70 passing, including 20 race condition tests)
 8. Only 2 minor deviations detected, both ACCEPTABLE:
     - Timing deviation (Part 3 change applied early) – NO IMPACT
     - Performance optimization (static fields) – POSITIVE IMPACT

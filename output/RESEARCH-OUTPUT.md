@@ -163,7 +163,6 @@ services:
 
 1. **TestcontainersConfiguration.java** - Sets up Redis testcontainer
 2. **TestWarmestDataApplication.java** - Test application runner with testcontainers
-3. **WarmestDataApplicationTests.java** - Basic context load test
 
 ---
 

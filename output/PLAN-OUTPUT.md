@@ -650,20 +650,26 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 
 ```
 src/test/java/io/github/ashr123/warmestdata/
-├── WarmestDataStructureTest.java         (NEW - Unit tests for Part 1)
-├── WarmestDataControllerTest.java        (NEW - Integration tests for Part 2)
-├── RedisWarmestDataStructureTest.java    (NEW - Integration tests for Part 3)
-├── WarmestDataStructureRaceConditionTest.java      (NEW - Race condition tests for in-memory)
-├── RedisWarmestDataStructureRaceConditionTest.java  (NEW - Race condition tests for Redis)
-├── TestcontainersConfiguration.java      (EXISTS)
-├── WarmestDataApplicationTests.java      (EXISTS - MODIFY)
+├── AbstractWarmestDataStructureTest.java     (NEW - Base class for 21 functional tests)
+├── AbstractRaceConditionTest.java            (NEW - Base class for 10 race condition tests)
+├── WarmestDataStructureTest.java             (NEW - Extends base, default profile)
+├── WarmestDataControllerTest.java            (NEW - Integration tests for Part 2)
+├── RedisWarmestDataStructureTest.java        (NEW - Extends base, redis profile)
+├── WarmestDataStructureRaceConditionTest.java      (NEW - Extends base, default profile)
+├── RedisWarmestDataStructureRaceConditionTest.java  (NEW - Extends base, redis profile)
+├── TestcontainersConfiguration.java          (EXISTS)
+├── TestWarmestDataApplication.java           (EXISTS)
 ```
 
 ### 4.1 Unit Tests for WarmestDataStructure
 
-**File**: `src/test/java/io/github/ashr123/warmestdata/WarmestDataStructureTest.java`
+**File**: `src/test/java/io/github/ashr123/warmestdata/AbstractWarmestDataStructureTest.java`
 
-All 21 test cases from the document, organized as individual `@Test` methods with `@Order` annotation.
+Abstract base class containing all 21 test cases from the document, organized as individual `@Test` methods with `@Order` annotation. Uses `@Autowired WarmestDataStructureInterface` so that Spring injects the correct implementation based on the active profile.
+
+Concrete subclasses:
+- `WarmestDataStructureTest.java` – `@SpringBootTest` with default profile (in-memory)
+- `RedisWarmestDataStructureTest.java` – `@SpringBootTest` + `@ActiveProfiles("redis")` + `@Import(TestcontainersConfiguration.class)`
 
 Test method naming convention:
 
@@ -687,33 +693,29 @@ Tests:
 
 ### 4.3 Redis Integration Tests
 
-**File**: `src/test/java/io/github/ashr123/warmestdata/RedisWarmestDataStructureTest.java`
-
-Using Testcontainers with Redis.
-
-Same 21 test cases but running against Redis implementation.
+`RedisWarmestDataStructureTest.java` extends `AbstractWarmestDataStructureTest`.
+Same 21 test cases running against Redis implementation via `@ActiveProfiles("redis")` + Testcontainers.
 
 ### 4.4 Race Condition Tests
 
-**File**: `src/test/java/io/github/ashr123/warmestdata/WarmestDataStructureRaceConditionTest.java`
+**File**: `src/test/java/io/github/ashr123/warmestdata/AbstractRaceConditionTest.java`
 
-10 concurrency scenarios for the in-memory (`!redis`) profile using multi-threaded stress tests:
+Abstract base class with 10 concurrency scenarios using multi-threaded stress tests:
 
-1. Concurrent `get` + `remove` on same key (node removed between read/write locks)
-2. Concurrent `get` + `get` on same key (double moveToTail)
-3. Concurrent `get` + `put` on same key (value mutation during lock gap)
-4. Multiple concurrent `get` on different keys (linked list integrity)
-5. Concurrent `put` + `remove` on same key
-6. Mixed concurrent operations stress test (warmest consistency)
-7. No deadlock under concurrent lock upgrade pattern
+1. AT_TAIL fast path: concurrent `get` + `put` on same tail key (the bug the old code had)
+2. AT_TAIL fast path: concurrent `get` + `remove` on same tail key
+3. NEEDS_MOVE path: concurrent `get` + `remove` on non-tail key (double-check pattern)
+4. NEEDS_MOVE path: concurrent `get` + `get` on same non-tail key (double moveToTail)
+5. NEEDS_MOVE path: concurrent `get` + `put` on non-tail key (value mutation)
+6. Concurrent `put` + `remove` on same key
+7. No deadlock under NEEDS_MOVE path high contention
 8. Per-thread key consistency (isolated put-get-remove cycles)
 9. `get` non-existent key during heavy writes
 10. Warmest tracking correctness after concurrent chaos
 
-**File**: `src/test/java/io/github/ashr123/warmestdata/RedisWarmestDataStructureRaceConditionTest.java`
-
-Same 10 concurrency scenarios for the Redis (`redis`) profile using Testcontainers.
-Verifies Lua script atomicity under concurrent multi-client access.
+Concrete subclasses:
+- `WarmestDataStructureRaceConditionTest.java` – `@SpringBootTest` with default profile (in-memory)
+- `RedisWarmestDataStructureRaceConditionTest.java` – `@SpringBootTest` + `@ActiveProfiles("redis")` + Testcontainers
 
 ---
 
@@ -763,22 +765,21 @@ Verifies Lua script atomicity under concurrent multi-client access.
 
 ### Part 4: Testing
 
-32. [ ] Create file `WarmestDataStructureTest.java` with test class setup
-33. [ ] Implement test cases 1-10 (single key operations)
-34. [ ] Implement test cases 11-21 (multi-key operations)
+32. [ ] Create file `AbstractWarmestDataStructureTest.java` — abstract base with 21 test cases
+33. [ ] Create file `WarmestDataStructureTest.java` — extends base, default profile
+34. [ ] Create file `RedisWarmestDataStructureTest.java` — extends base, redis profile + Testcontainers
 35. [ ] Create file `WarmestDataControllerTest.java` with `@SpringBootTest`
 36. [ ] Implement controller endpoint tests
-37. [ ] Create file `RedisWarmestDataStructureTest.java` with Testcontainers
-38. [ ] Implement all 21 test cases for Redis implementation
-39. [ ] Create file `WarmestDataStructureRaceConditionTest.java` with 10 concurrency scenarios
-40. [ ] Create file `RedisWarmestDataStructureRaceConditionTest.java` with 10 concurrency scenarios
-41. [ ] Run all tests to verify implementation
+37. [ ] Create file `AbstractRaceConditionTest.java` — abstract base with 10 concurrency scenarios
+38. [ ] Create file `WarmestDataStructureRaceConditionTest.java` — extends base, default profile
+39. [ ] Create file `RedisWarmestDataStructureRaceConditionTest.java` — extends base, redis profile + Testcontainers
+40. [ ] Run all tests to verify implementation
 
 ### Final Verification
 
-42. [ ] Build project: `./gradlew build`
-43. [ ] Run local application: `./gradlew bootRun`
-44. [ ] Test endpoints manually with curl
-45. [ ] Build Docker image: `./gradlew bootJar && docker build -t warmest-data .`
-46. [ ] Deploy 3 instances: `docker-compose -f compose-multi.yaml up`
-47. [ ] Verify data synchronization across instances
+41. [ ] Build project: `./gradlew build`
+42. [ ] Run local application: `./gradlew bootRun`
+43. [ ] Test endpoints manually with curl
+44. [ ] Build Docker image: `./gradlew bootJar && docker build -t warmest-data .`
+45. [ ] Deploy 3 instances: `docker-compose -f compose-multi.yaml up`
+46. [ ] Verify data synchronization across instances

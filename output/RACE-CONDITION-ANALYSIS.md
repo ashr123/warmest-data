@@ -246,29 +246,32 @@ But this is **not necessary** – the code is already safe.
 
 All scenarios identified above are now verified by dedicated concurrency test suites for both profiles:
 
-### Test Files Added
+### Test Architecture
 
-- **`WarmestDataStructureRaceConditionTest.java`** — 10 race condition scenarios for the in-memory (`!redis`) profile
-- **`RedisWarmestDataStructureRaceConditionTest.java`** — 10 race condition scenarios for the Redis (`redis`) profile using Testcontainers
+All 10 race condition scenarios are defined once in a shared abstract base class:
+
+- **`AbstractRaceConditionTest.java`** — abstract base with all 10 `@Test` methods and `@Autowired WarmestDataStructureInterface`
+- **`WarmestDataStructureRaceConditionTest.java`** — extends base, `@SpringBootTest` with default profile (in-memory)
+- **`RedisWarmestDataStructureRaceConditionTest.java`** — extends base, `@ActiveProfiles("redis")` + Testcontainers
 
 ### Scenarios Tested (10 per profile)
 
-| #  | Scenario                                                | What It Verifies                                                             |
-|----|---------------------------------------------------------|------------------------------------------------------------------------------|
-| 1  | Concurrent `get` + `remove` on same key                 | Node removed between read/write lock gap; double-check catches it            |
-| 2  | Concurrent `get` + `get` on same key                    | Node moved to tail between locks; second thread detects it's already warmest |
-| 3  | Concurrent `get` + `put` on same key                    | Value mutation during lock gap; returns valid snapshot (old or new value)    |
-| 4  | Multiple concurrent `get` on different keys             | Linked list integrity under concurrent moveToTail operations                 |
-| 5  | Concurrent `put` + `remove` on same key                 | No exceptions or data corruption from conflicting write operations           |
-| 6  | Mixed concurrent operations (put/get/remove/getWarmest) | Warmest consistency; no exceptions under random concurrent chaos             |
-| 7  | Heavy concurrent `get` with lock upgrade pattern        | No deadlock/livelock from read-lock → write-lock upgrade pattern             |
-| 8  | Per-thread key consistency (put-get-remove cycles)      | Isolated key operations return expected values under concurrency             |
-| 9  | `get` non-existent key during heavy writes              | Always returns null; no cross-contamination from concurrent writes           |
-| 10 | Warmest tracking after concurrent chaos                 | Final deterministic `put` correctly sets warmest after concurrent ops        |
+| #  | Scenario                                                   | What It Verifies                                                             |
+|----|------------------------------------------------------------|------------------------------------------------------------------------------|
+| 1  | AT_TAIL: concurrent `get` + `put` on same tail key         | The bug the old code had — `node.value` read without lock                    |
+| 2  | AT_TAIL: concurrent `get` + `remove` on same tail key      | Node removed while fast-path read is in progress                             |
+| 3  | NEEDS_MOVE: concurrent `get` + `remove` on non-tail key    | Double-check under write lock catches removal                                |
+| 4  | NEEDS_MOVE: concurrent `get` + `get` on same non-tail key  | Second thread detects node already at tail after first moved it              |
+| 5  | NEEDS_MOVE: concurrent `get` + `put` on non-tail key       | Value mutation; returns valid snapshot (old or new value)                     |
+| 6  | Concurrent `put` + `remove` on same key                    | No exceptions or data corruption from conflicting write operations           |
+| 7  | NEEDS_MOVE path under high contention (10 threads)         | No deadlock/livelock from read-lock → write-lock upgrade pattern             |
+| 8  | Per-thread key consistency (put-get-remove cycles)         | Isolated key operations return expected values under concurrency             |
+| 9  | `get` non-existent key during heavy writes                 | Always returns null; no cross-contamination from concurrent writes           |
+| 10 | Warmest tracking after concurrent chaos                    | Final deterministic `put` correctly sets warmest after concurrent ops        |
 
 ### Test Configuration
 
 - **Thread count**: 10 concurrent threads
-- **Iterations**: 1000 per scenario (in-memory), 200 per scenario (Redis, due to network overhead)
+- **Iterations**: 1 000 per scenario for both profiles
 - **Synchronization**: `CyclicBarrier` for precise concurrent launch, `CountDownLatch` for completion tracking
-- **Deadlock detection**: 30-second timeout assertions on thread completion
+- **Deadlock detection**: 60-second timeout assertions on thread completion
