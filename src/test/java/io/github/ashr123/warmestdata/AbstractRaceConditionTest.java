@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * (profile {@code !redis}) or
  * {@link io.github.ashr123.warmestdata.dto.RedisWarmestDataStructure}
  * (profile {@code redis}).
- *
+ * <p>
  * Both implementations must satisfy exactly the same concurrency contracts.
  */
 abstract class AbstractRaceConditionTest {
@@ -56,19 +56,19 @@ abstract class AbstractRaceConditionTest {
 
 	/**
 	 * This is the scenario the old in-memory code got WRONG.
-	 *
+	 * <p>
 	 * Old code path:
 	 *   readLock() → node = map.get(key) → node == tail → readUnlock() → return node.value  ← NO LOCK
-	 *
+	 * <p>
 	 * The key is always the tail (only one key in the structure), so every get()
 	 * takes the AT_TAIL fast path. A concurrent put() on the same key mutates
 	 * node.value under write lock. Without any lock on the read side, the value
 	 * read by get() had no JMM visibility guarantee — it could be stale or torn.
-	 *
+	 * <p>
 	 * Fix: node.value is now read while the read lock is still held.
-	 *
+	 * <p>
 	 * For Redis: each Lua script is atomic, so no partial state is ever visible.
-	 *
+	 * <p>
 	 * Expected: every get() returns either OLD_VALUE or NEW_VALUE — never anything else.
 	 */
 	@Test
@@ -125,10 +125,10 @@ abstract class AbstractRaceConditionTest {
 	/**
 	 * The key is the only (tail) entry. Thread A calls get() — AT_TAIL fast path.
 	 * Thread B calls remove() concurrently.
-	 *
+	 * <p>
 	 * Old code: get() read node.value AFTER releasing the read lock, so it could
 	 * observe the node after detach() had cleared its pointers.
-	 *
+	 * <p>
 	 * Expected: get() returns VALUE or null — never throws, never returns garbage.
 	 */
 	@Test
@@ -181,9 +181,9 @@ abstract class AbstractRaceConditionTest {
 	 * "key" is NOT at tail ("other" is inserted after it). Thread A calls get("key")
 	 * via the NEEDS_MOVE path (read lock → release → write lock).
 	 * Thread B calls remove("key") concurrently.
-	 *
+	 * <p>
 	 * The double-check inside the write-lock section must detect the removal.
-	 *
+	 * <p>
 	 * Expected: get() returns VALUE or null — never throws.
 	 */
 	@Test
@@ -242,7 +242,7 @@ abstract class AbstractRaceConditionTest {
 	 * "a" is not at tail. Two threads simultaneously call get("a"), both see
 	 * NEEDS_MOVE and race for the write lock. The second must detect "a" is
 	 * already at tail and skip the redundant move.
-	 *
+	 * <p>
 	 * Expected: both return 1, and "a" is warmest afterwards.
 	 */
 	@Test
@@ -292,7 +292,7 @@ abstract class AbstractRaceConditionTest {
 	/**
 	 * "key1" is not at tail. Thread A gets it (NEEDS_MOVE path).
 	 * Thread B updates its value concurrently.
-	 *
+	 * <p>
 	 * Expected: get() returns OLD_VALUE or NEW_VALUE — never anything else.
 	 */
 	@Test
@@ -401,7 +401,7 @@ abstract class AbstractRaceConditionTest {
 	 * Many threads concurrently call get() on the same NON-TAIL key, all racing
 	 * through the NEEDS_MOVE path (read lock → release → write lock for in-memory;
 	 * serialized Lua script for Redis).
-	 *
+	 * <p>
 	 * A deadlock manifests as a test timeout caught by the 30-second latch assertion.
 	 */
 	@Test

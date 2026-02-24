@@ -9,8 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
  * Concrete subclasses activate the desired Spring profile so that Spring injects either
  * {@link io.github.ashr123.warmestdata.dto.WarmestDataStructure} (profile {@code !redis})
  * or {@link io.github.ashr123.warmestdata.dto.RedisWarmestDataStructure} (profile {@code redis}).
- *
- * Both implementations must satisfy exactly the same behavioural contracts.
+ * <p>
+ * Both implementations must satisfy exactly the same behavioral contracts.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 abstract class AbstractWarmestDataStructureTest {
