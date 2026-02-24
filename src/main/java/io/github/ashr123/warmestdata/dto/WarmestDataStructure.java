@@ -104,14 +104,10 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 		ReadLockResult readResult = tryGetWithReadLock(key);
 		return switch (readResult.status()) {
 			case NOT_FOUND -> null;
-			case AT_TAIL   -> readResult.value();
+			case AT_TAIL -> readResult.value();
 			case NEEDS_MOVE -> moveNodeAndGetValue(key);
 		};
 	}
-
-	private enum GetStatus { NOT_FOUND, AT_TAIL, NEEDS_MOVE }
-
-	private record ReadLockResult(GetStatus status, Integer value) {}
 
 	/**
 	 * Reads the node under read lock.
@@ -125,14 +121,12 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 		lock.readLock().lock();
 		try {
 			Node node = map.get(key);
-			if (node == null) {
-				return new ReadLockResult(GetStatus.NOT_FOUND, null);
-			}
-			if (node == tail) {
-				// node.value is safe: read lock prevents any writer from mutating it
-				return new ReadLockResult(GetStatus.AT_TAIL, node.value);
-			}
-			return new ReadLockResult(GetStatus.NEEDS_MOVE, null);
+			return node == null ?
+					new ReadLockResult(GetStatus.NOT_FOUND, null) :
+					node == tail ?
+							// node.value is safe: read lock prevents any writer from mutating it
+							new ReadLockResult(GetStatus.AT_TAIL, node.value) :
+							new ReadLockResult(GetStatus.NEEDS_MOVE, null);
 		} finally {
 			lock.readLock().unlock();
 		}
@@ -179,6 +173,15 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 		} finally {
 			lock.readLock().unlock();
 		}
+	}
+
+	private enum GetStatus {
+		NOT_FOUND,
+		AT_TAIL,
+		NEEDS_MOVE
+	}
+
+	private record ReadLockResult(GetStatus status, Integer value) {
 	}
 
 	/**
