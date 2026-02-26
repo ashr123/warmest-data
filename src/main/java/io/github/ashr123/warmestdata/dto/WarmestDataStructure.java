@@ -1,7 +1,7 @@
 package io.github.ashr123.warmestdata.dto;
 
 import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Repository;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,7 +11,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * Thread-safe implementation of WarmestDataStructureInterface using a custom doubly linked list
  * and HashMap for O(1) operations.
  */
-@Service
+@Repository
 @Profile("!redis")
 public class WarmestDataStructure implements WarmestDataStructureInterface {
 
