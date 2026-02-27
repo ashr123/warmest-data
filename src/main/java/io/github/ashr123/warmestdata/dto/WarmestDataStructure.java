@@ -64,12 +64,11 @@ public class WarmestDataStructure implements WarmestDataStructureInterface {
 	 * @implNote Must be called while holding write lock.
 	 */
 	private void moveToTail(Node node) {
-		if (node == tail) {
-			// Already at tail, nothing to do
-			return;
+		if (node != tail) {
+			detach(node);
+			attachToTail(node);
 		}
-		detach(node);
-		attachToTail(node);
+		// Already at tail, nothing to do
 	}
 
 	@Override
